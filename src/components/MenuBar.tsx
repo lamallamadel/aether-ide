@@ -119,21 +119,9 @@ export function MenuBar() {
         { kind: 'action', id: 'edit-paste', label: 'Paste', action: () => announce('Use Ctrl+V to paste') },
         { kind: 'separator', id: 'edit-sep-2' },
         { kind: 'action', id: 'edit-find', label: 'Find', action: () => setGlobalSearchOpen(true) },
-        { kind: 'action', id: 'edit-replace', label: 'Replace', action: () => announce('Replace not implemented') },
-        { kind: 'separator', id: 'edit-sep-3' },
-        { kind: 'action', id: 'edit-toggle-line', label: 'Toggle Line Comment', action: () => announce('Comment toggle not implemented') },
-        { kind: 'action', id: 'edit-toggle-block', label: 'Toggle Block Comment', action: () => announce('Comment toggle not implemented') },
       ],
       Selection: [
         { kind: 'action', id: 'sel-all', label: 'Select All', action: () => announce('Select All confirmed') },
-        { kind: 'action', id: 'sel-expand', label: 'Expand Selection', action: () => announce('Expand Selection not implemented') },
-        { kind: 'separator', id: 'sel-sep-1' },
-        { kind: 'action', id: 'sel-copy-up', label: 'Copy Line Up', action: () => announce('Copy Line Up not implemented') },
-        { kind: 'action', id: 'sel-copy-down', label: 'Copy Line Down', action: () => announce('Copy Line Down not implemented') },
-        { kind: 'action', id: 'sel-move-up', label: 'Move Line Up', action: () => announce('Move Line Up not implemented') },
-        { kind: 'action', id: 'sel-move-down', label: 'Move Line Down', action: () => announce('Move Line Down not implemented') },
-        { kind: 'separator', id: 'sel-sep-2' },
-        { kind: 'action', id: 'sel-dup', label: 'Duplicate Selection', action: () => announce('Duplicate Selection not implemented') },
       ],
       View: [
         { kind: 'action', id: 'view-palette', label: 'Command Palette', action: () => setCommandPaletteOpen(true) },
@@ -153,18 +141,9 @@ export function MenuBar() {
       Go: [
         { kind: 'action', id: 'go-file', label: 'Go to File...', action: () => setCommandPaletteOpen(true) },
         { kind: 'action', id: 'go-symbol', label: 'Go to Symbol...', action: () => setGlobalSearchOpen(true) },
-        { kind: 'separator', id: 'go-sep-1' },
-        { kind: 'action', id: 'go-line', label: 'Go to Line/Column...', action: () => announce('Go to Line not implemented') },
-        { kind: 'separator', id: 'go-sep-2' },
-        { kind: 'action', id: 'go-def', label: 'Go to Definition', action: () => announce('Go to Definition not implemented') },
-        { kind: 'action', id: 'go-ref', label: 'Go to References', action: () => announce('Go to References not implemented') },
       ],
       Run: [
-        { kind: 'action', id: 'run-debug', label: 'Start Debugging', action: () => announce('Debugging is not implemented') },
-        { kind: 'action', id: 'run-run', label: 'Run Without Debugging', action: () => announce('Run is not implemented') },
-        { kind: 'separator', id: 'run-sep-1' },
-        { kind: 'action', id: 'run-stop', label: 'Stop Debugging', action: () => announce('No active debug session') },
-        { kind: 'action', id: 'run-restart', label: 'Restart Debugging', action: () => announce('No active debug session') },
+        { kind: 'action', id: 'run-placeholder', label: '(Debug/Run — coming soon)', action: () => announce('Debugging and Run not yet implemented') },
       ],
       Terminal: [
         { kind: 'action', id: 'term-new', label: 'New Terminal', action: () => setMissionControlOpen(true) },
@@ -192,8 +171,6 @@ export function MenuBar() {
       toggleEditorWordWrap,
       editorMinimap,
       toggleEditorMinimap,
-      editorWordWrap, 
-      editorMinimap
     ]
   )
 
