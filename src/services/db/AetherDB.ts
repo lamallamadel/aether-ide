@@ -12,6 +12,9 @@ export class AetherDB {
     }
 
     private init(): Promise<void> {
+        if (typeof indexedDB === 'undefined') {
+            return Promise.resolve() // Degraded mode: db stays null, all methods will reject
+        }
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(DB_NAME, DB_VERSION)
 

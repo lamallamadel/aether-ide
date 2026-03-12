@@ -70,17 +70,33 @@ const extractSymbols = (root: SyntaxNode, text: string): ExtractedSymbol[] => {
   return syms
 }
 
+const MAX_CONTENT_LENGTH = 2 * 1024 * 1024 // 2MB
+const VALID_LANGUAGE_IDS = new Set<string>(['javascript', 'typescript', 'tsx'])
+
 const post = (id: string, payload: any, error?: string) => {
   const response: WorkerResponse = { id, payload, error }
   self.postMessage(response)
+}
+
+function validateParsePayload(payload: unknown): payload is { languageId: string; content: string } {
+  if (!payload || typeof payload !== 'object') return false
+  const p = payload as Record<string, unknown>
+  if (typeof p.languageId !== 'string' || !VALID_LANGUAGE_IDS.has(p.languageId)) return false
+  if (typeof p.content !== 'string') return false
+  if (p.content.length > MAX_CONTENT_LENGTH) return false
+  return true
 }
 
 self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
   const { id, type, payload } = event.data
   try {
     if (type === 'PARSE') {
+      if (!validateParsePayload(payload)) {
+        post(id, null, 'Invalid PARSE payload: expected { languageId: "javascript"|"typescript"|"tsx", content: string }')
+        return
+      }
       const { languageId, content } = payload
-      const lang = await loadLanguage(languageId)
+      const lang = await loadLanguage(languageId as LanguageId)
       const parser = new Parser()
       parser.setLanguage(lang)
       const tree = parser.parse(content)

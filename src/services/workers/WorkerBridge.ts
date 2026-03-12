@@ -20,7 +20,7 @@ class WorkerBridge {
             this.syntaxWorker = new Worker(new URL('../../workers/syntax.worker.ts', import.meta.url), {
                 type: 'module',
             })
-            this.setupWorkerListener(this.syntaxWorker)
+            this.setupWorkerListener(this.syntaxWorker, 'syntax')
         } catch (e) {
             console.error('WorkerBridge: Failed to create Syntax Worker', e)
             this.rejectAllPending('Syntax Worker failed to initialize')
@@ -36,7 +36,7 @@ class WorkerBridge {
             this.indexerWorker = new Worker(new URL('../../workers/indexer.worker.ts', import.meta.url), {
                 type: 'module',
             })
-            this.setupWorkerListener(this.indexerWorker)
+            this.setupWorkerListener(this.indexerWorker, 'indexer')
         } catch (e) {
             console.error('WorkerBridge: Failed to create Indexer Worker', e)
             this.rejectAllPending('Indexer Worker failed to initialize')
@@ -45,7 +45,7 @@ class WorkerBridge {
         }
     }
 
-    private setupWorkerListener(worker: Worker) {
+    private setupWorkerListener(worker: Worker, workerType: 'syntax' | 'indexer') {
         worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
             const { id, payload, error } = event.data
             const request = this.pendingRequests.get(id)
@@ -64,6 +64,13 @@ class WorkerBridge {
         worker.onerror = (err) => {
             console.error('Worker Error:', err)
             this.rejectAllPending('Worker crashed')
+            if (workerType === 'syntax') {
+                this.syntaxWorker = null
+                this.syntaxWorkerInitializing = false
+            } else {
+                this.indexerWorker = null
+                this.indexerWorkerInitializing = false
+            }
         }
     }
 

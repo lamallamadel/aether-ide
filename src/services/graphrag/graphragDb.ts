@@ -12,7 +12,10 @@ const DB_NAME = 'aether-graphrag'
 const DB_VERSION = 1
 const STORE = 'chunks'
 
-const openDb = async () => {
+const openDb = async (): Promise<IDBDatabase> => {
+  if (typeof indexedDB === 'undefined') {
+    return Promise.reject(new Error('IndexedDB not available'))
+  }
   return new Promise<IDBDatabase>((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION)
     req.onupgradeneeded = () => {
