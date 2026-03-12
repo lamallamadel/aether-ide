@@ -22,10 +22,12 @@ export function AIChatPanel() {
     }
   }, [])
 
+  const MAX_INPUT_LENGTH = 2000
+
   const sendMessage = async () => {
     if (!input.trim()) return
 
-    const userMsg = input
+    const userMsg = input.trim().slice(0, MAX_INPUT_LENGTH)
     setMessages((prev) => [...prev, { role: 'user', text: userMsg }])
     setInput('')
     setIsTyping(true)
@@ -185,6 +187,7 @@ export function AIChatPanel() {
               }
             }}
             placeholder="Ask AI about your code (Ctrl+L)"
+            maxLength={MAX_INPUT_LENGTH}
             className="w-full bg-[#1a1a1a] text-gray-200 text-sm rounded-md p-3 pr-10 border border-white/5 focus:outline-none resize-none h-24 custom-scrollbar"
             style={{ borderColor: 'rgb(var(--color-primary-500) / 0.5)' }}
           />

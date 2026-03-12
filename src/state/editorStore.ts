@@ -18,6 +18,8 @@ export interface EditorState {
   missionControlOpen: boolean
   aiMode: 'cloud' | 'local'
   aiHealth: AiHealthStatus
+  indexingError: string | null
+  storageQuotaExceeded: boolean
   perf: PerfMetrics
   worktreeChanges: Record<string, { fileId: string; originalContent: string; proposedContent: string }>
   editorFontSizePx: number
@@ -44,6 +46,8 @@ export interface EditorState {
   setMissionControlOpen: (open: boolean) => void
   setAiMode: (mode: 'cloud' | 'local') => void
   setAiHealth: (status: AiHealthStatus) => void
+  setIndexingError: (error: string | null) => void
+  setStorageQuotaExceeded: (exceeded: boolean) => void
   setPerf: (metrics: PerfMetrics) => void
   getFileContent: (fileId: string) => string
   findNode: (id: string) => FileNode | null
@@ -110,6 +114,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   missionControlOpen: false,
   aiMode: 'cloud',
   aiHealth: 'loading',
+  indexingError: null,
+  storageQuotaExceeded: false,
   perf: { longTaskCount: 0, longTaskMaxMs: 0, slowFrameCount: 0, slowFrameMaxMs: 0 },
   worktreeChanges: {},
   editorFontSizePx: 14,
@@ -160,6 +166,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setMissionControlOpen: (open) => set({ missionControlOpen: open }),
   setAiMode: (mode) => set({ aiMode: mode }),
   setAiHealth: (status) => set({ aiHealth: status }),
+  setIndexingError: (error) => set({ indexingError: error }),
+  setStorageQuotaExceeded: (exceeded) => set({ storageQuotaExceeded: exceeded }),
   setPerf: (metrics) => set({ perf: metrics }),
 
   setEditorFontSizePx: (value) => set({ editorFontSizePx: value }),

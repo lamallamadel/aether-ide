@@ -17,7 +17,7 @@ import { vectorStore } from './services/db/VectorStore'
 import { THEME_COLORS } from './lib/theme'
 
 export default function App() {
-  const { setCommandPaletteOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen } =
+  const { setCommandPaletteOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError } =
     useEditorStore()
 
   useEffect(() => {
@@ -47,10 +47,17 @@ export default function App() {
     
     console.log('App: Starting Initial Indexing...', { fileCount: flatFiles.length, files: flatFiles.map(f => f.fileId) })
     
+    setIndexingError(null)
     workerBridge.postRequest('INDEX_BUILD', { files: flatFiles })
-        .then((res:any) => console.log('App: Initial Indexing Complete:', res))
-        .catch((err:any) => console.error('App: Indexing Failed:', err))
-  }, [])
+        .then((res: any) => {
+          console.log('App: Initial Indexing Complete:', res)
+          setIndexingError(null)
+        })
+        .catch((err: any) => {
+          console.error('App: Indexing Failed:', err)
+          setIndexingError(err?.message ?? 'Indexing failed')
+        })
+  }, [setIndexingError])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

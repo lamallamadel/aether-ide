@@ -1,4 +1,4 @@
-import { Bot, Brain, Split, X } from 'lucide-react'
+import { AlertTriangle, Bot, Brain, Split, X } from 'lucide-react'
 import { useEditorStore } from '../state/editorStore'
 import type { AiHealthStatus } from '../state/editorStore'
 
@@ -10,7 +10,7 @@ const AI_HEALTH_CONFIG: Record<AiHealthStatus, { color: string; label: string; p
 }
 
 export function StatusBar() {
-  const { editorFontSizePx, perf, activeFileId, aiHealth } = useEditorStore()
+  const { editorFontSizePx, perf, activeFileId, aiHealth, indexingError, storageQuotaExceeded } = useEditorStore()
 
   const languageLabel = activeFileId ? getLanguageLabel(activeFileId) : 'Plain Text'
   const healthConfig = AI_HEALTH_CONFIG[aiHealth]
@@ -18,6 +18,18 @@ export function StatusBar() {
   return (
     <div className="h-7 text-primary-100 font-semibold flex items-center justify-between px-4 text-xs select-none z-10" style={{ backgroundColor: 'rgb(var(--color-primary-600))' }}>
       <div className="flex items-center gap-2">
+        {indexingError && (
+          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200" title={indexingError}>
+            <AlertTriangle size={12} />
+            <span>Indexing failed</span>
+          </div>
+        )}
+        {storageQuotaExceeded && (
+          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-500/20 text-red-200" title="Storage quota exceeded. Try clearing browser data.">
+            <AlertTriangle size={12} />
+            <span>Storage full</span>
+          </div>
+        )}
         <div className="flex items-center gap-1 hover:bg-primary-500/20 px-1.5 py-0.5 rounded cursor-pointer text-primary-100">
           <Split size={12} />
           <span>master*</span>

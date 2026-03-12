@@ -1,6 +1,7 @@
 import type { ExtractedSymbol } from '../syntax/syntaxTypes'
 import { getAllChunks, type RagChunkRecord, upsertChunks } from './graphragDb'
 import { vectorStore } from '../db/VectorStore'
+import { useEditorStore } from '../../state/editorStore'
 
 
 const tokenize = (s: string) =>
@@ -57,24 +58,30 @@ export const buildChunksFromSymbols = (fileId: string, content: string, symbols:
   return out
 }
 
+function isQuotaExceeded(err: unknown): boolean {
+  return !!(err && typeof err === 'object' && (err as { name?: string }).name === 'QuotaExceededError')
+}
+
 export const ingestFile = async (fileId: string, content: string, symbols: ExtractedSymbol[]) => {
   if (typeof indexedDB === 'undefined') return
   const chunks = buildChunksFromSymbols(fileId, content, symbols)
-
-  // 1. Persist to GraphRAG DB (Legacy/Metadata)
-  await upsertChunks(chunks)
-
-  // 2. Persist to Vector Store — convert char indices to line numbers
-  // persistVectors now handles embedding failures gracefully (stores without vector)
   const vectorChunks = chunks.map(c => ({
     content: c.text,
     startLine: charOffsetToLine(content, c.startIndex),
     endLine: charOffsetToLine(content, c.endIndex)
   }))
+
+  try {
+    await upsertChunks(chunks)
+  } catch (err: unknown) {
+    if (isQuotaExceeded(err)) useEditorStore.getState().setStorageQuotaExceeded(true)
+    console.error('GraphRAG: chunk persistence failed', err)
+    return
+  }
   try {
     await vectorStore.persistVectors(fileId, vectorChunks)
-  } catch (err) {
-    // Ingestion failure must not crash the editor — log and continue
+  } catch (err: unknown) {
+    if (isQuotaExceeded(err)) useEditorStore.getState().setStorageQuotaExceeded(true)
     console.error('GraphRAG: vector ingestion failed, keyword search still available', err)
   }
 }

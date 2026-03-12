@@ -133,7 +133,12 @@ export class VectorStore {
                 })
             }
         }
-        await db.upsertVectors(vectors)
+        try {
+            await db.upsertVectors(vectors)
+        } catch (err) {
+            console.warn('VectorStore: failed to persist vectors', err)
+            throw err
+        }
         this.setHealth(hadEmbedFailure ? 'degraded' : 'ready')
     }
 
