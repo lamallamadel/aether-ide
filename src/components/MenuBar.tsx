@@ -42,6 +42,7 @@ export function MenuBar() {
     toggleEditorWordWrap,
     editorMinimap,
     toggleEditorMinimap,
+    executeEditorCommand,
   } = useEditorStore()
 
   const [activeMenu, setActiveMenu] = useState<MenuKey | null>(null)
@@ -111,17 +112,17 @@ export function MenuBar() {
         { kind: 'action', id: 'file-exit', label: 'Exit', action: () => announce('Exit is not supported in the browser') },
       ],
       Edit: [
-        { kind: 'action', id: 'edit-undo', label: 'Undo', action: () => announce('Undo unavailable (read-only mode)') },
-        { kind: 'action', id: 'edit-redo', label: 'Redo', action: () => announce('Redo unavailable (read-only mode)') },
+        { kind: 'action', id: 'edit-undo', label: 'Undo', action: () => executeEditorCommand('undo') || announce('Focus the editor first') },
+        { kind: 'action', id: 'edit-redo', label: 'Redo', action: () => executeEditorCommand('redo') || announce('Focus the editor first') },
         { kind: 'separator', id: 'edit-sep-1' },
-        { kind: 'action', id: 'edit-cut', label: 'Cut', action: () => announce('Cut unavailable') },
-        { kind: 'action', id: 'edit-copy', label: 'Copy', action: () => announce('Use Ctrl+C to copy') },
-        { kind: 'action', id: 'edit-paste', label: 'Paste', action: () => announce('Use Ctrl+V to paste') },
+        { kind: 'action', id: 'edit-cut', label: 'Cut', action: () => executeEditorCommand('cut') || announce('Focus the editor first') },
+        { kind: 'action', id: 'edit-copy', label: 'Copy', action: () => executeEditorCommand('copy') || announce('Focus the editor first') },
+        { kind: 'action', id: 'edit-paste', label: 'Paste', action: () => executeEditorCommand('paste') || announce('Focus the editor first') },
         { kind: 'separator', id: 'edit-sep-2' },
         { kind: 'action', id: 'edit-find', label: 'Find', action: () => setGlobalSearchOpen(true) },
       ],
       Selection: [
-        { kind: 'action', id: 'sel-all', label: 'Select All', action: () => announce('Select All confirmed') },
+        { kind: 'action', id: 'sel-all', label: 'Select All', action: () => executeEditorCommand('selectAll') || announce('Focus the editor first') },
       ],
       View: [
         { kind: 'action', id: 'view-palette', label: 'Command Palette', action: () => setCommandPaletteOpen(true) },
@@ -171,6 +172,7 @@ export function MenuBar() {
       toggleEditorWordWrap,
       editorMinimap,
       toggleEditorMinimap,
+      executeEditorCommand,
     ]
   )
 

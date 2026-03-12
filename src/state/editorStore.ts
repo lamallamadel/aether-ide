@@ -6,6 +6,9 @@ import type { PerfMetrics } from '../services/perf/perfMonitor'
 
 export type AiHealthStatus = 'full' | 'degraded' | 'offline' | 'loading'
 
+/** Commands exécutables depuis le MenuBar vers CodeMirror */
+export type EditorCommand = 'undo' | 'redo' | 'copy' | 'cut' | 'paste' | 'selectAll'
+
 export interface EditorState {
   files: FileNode[]
   activeFileId: string | null
@@ -62,6 +65,11 @@ export interface EditorState {
   rejectWorktreeChange: (fileId: string) => void
   applyWorktreeChange: (fileId: string) => void
   clearWorktree: () => void
+  /** Exécute une commande sur l'éditeur actif. Retourne false si aucune vue ou commande non dispo. */
+  executeEditorCommand: (cmd: EditorCommand) => boolean
+  /** Enregistré par CodeEditor au mount, null au unmount. */
+  setEditorCommandRunner: (runner: ((cmd: EditorCommand) => boolean) | null) => void
+  editorCommandRunner: ((cmd: EditorCommand) => boolean) | null
 }
 
 export const findNode = (nodes: FileNode[], id: string): FileNode | null => {
@@ -228,4 +236,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
   clearWorktree: () => set({ worktreeChanges: {} }),
+
+  editorCommandRunner: null as ((cmd: EditorCommand) => boolean) | null,
+  setEditorCommandRunner: (runner) => set({ editorCommandRunner: runner }),
+  executeEditorCommand: (cmd) => get().editorCommandRunner?.(cmd) ?? false,
 }))

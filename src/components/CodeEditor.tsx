@@ -1,8 +1,17 @@
-import { history, historyKeymap } from '@codemirror/commands'
+import {
+  history,
+  historyKeymap,
+  undo,
+  redo,
+  selectAll,
+  defaultKeymap,
+  indentWithTab,
+} from '@codemirror/commands'
 import { keymap } from '@codemirror/view'
 import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, drawSelection, highlightActiveLine, highlightSpecialChars, lineNumbers } from '@codemirror/view'
-import { defaultKeymap, indentWithTab } from '@codemirror/commands'
+import type { EditorCommand } from '../state/editorStore'
+import { useEditorStore } from '../state/editorStore'
 import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
 import { markdown } from '@codemirror/lang-markdown'
@@ -230,7 +239,34 @@ export function CodeEditor(props: {
     const view = new EditorView({ state, parent: hostRef.current })
     viewRef.current = view
 
+    const runner = (cmd: EditorCommand): boolean => {
+      try {
+        const target = { state: view.state, dispatch: (tr: import('@codemirror/state').Transaction) => view.dispatch(tr) }
+        if (cmd === 'undo') return undo(target)
+        if (cmd === 'redo') return redo(target)
+        if (cmd === 'selectAll') return selectAll(target)
+        if (cmd === 'copy' || cmd === 'paste' || cmd === 'cut') {
+          view.focus()
+          const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+          const key = cmd === 'copy' ? 'c' : cmd === 'cut' ? 'x' : 'v'
+          const ev = new KeyboardEvent('keydown', {
+            key,
+            ctrlKey: !isMac,
+            metaKey: isMac,
+            bubbles: true,
+          })
+          view.dom.dispatchEvent(ev)
+          return true
+        }
+        return false
+      } catch {
+        return false
+      }
+    }
+    useEditorStore.getState().setEditorCommandRunner(runner)
+
     return () => {
+      useEditorStore.getState().setEditorCommandRunner(null)
       if (debounceRef.current) window.clearTimeout(debounceRef.current)
       view.destroy()
       viewRef.current = null
