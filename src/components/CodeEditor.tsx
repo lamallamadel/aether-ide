@@ -10,6 +10,7 @@ import {
 import { keymap } from '@codemirror/view'
 import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, drawSelection, highlightActiveLine, highlightSpecialChars, lineNumbers } from '@codemirror/view'
+import { showMinimap } from '@replit/codemirror-minimap'
 import type { EditorCommand } from '../state/editorStore'
 import { useEditorStore } from '../state/editorStore'
 import { javascript } from '@codemirror/lang-javascript'
@@ -162,8 +163,9 @@ export function CodeEditor(props: {
   fontFamily: string
   theme: string
   wordWrap: boolean
+  minimap?: boolean
 }) {
-  const { fileId, value, onChange, fontSizePx, fontFamily, theme, wordWrap } = props
+  const { fileId, value, onChange, fontSizePx, fontFamily, theme, wordWrap, minimap = false } = props
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const lastValueRef = useRef<string>(value)
@@ -171,6 +173,7 @@ export function CodeEditor(props: {
   const languageCompartment = useRef(new Compartment()).current
   const wrapCompartment = useRef(new Compartment()).current
   const themeCompartment = useRef(new Compartment()).current
+  const minimapCompartment = useRef(new Compartment()).current
 
   const language = useMemo(() => languageForFile(fileId), [fileId])
   const baseTheme = useMemo(() => {
@@ -233,6 +236,15 @@ export function CodeEditor(props: {
         wrapCompartment.of(wordWrap ? EditorView.lineWrapping : []),
         languageCompartment.of(language ? [language] : []),
         syntaxHighlighting(aetherHighlightStyle),
+        minimapCompartment.of(
+          minimap
+            ? showMinimap.of({
+                create: () => ({ dom: document.createElement('div') }),
+                displayText: 'blocks',
+                showOverlay: 'mouse-over',
+              })
+            : showMinimap.of(null)
+        ),
       ],
     })
 
@@ -302,6 +314,22 @@ export function CodeEditor(props: {
     if (!view) return
     view.dispatch({ effects: wrapCompartment.reconfigure(wordWrap ? EditorView.lineWrapping : []) })
   }, [wordWrap])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({
+      effects: minimapCompartment.reconfigure(
+        minimap
+          ? showMinimap.of({
+              create: () => ({ dom: document.createElement('div') }),
+              displayText: 'blocks',
+              showOverlay: 'mouse-over',
+            })
+          : showMinimap.of(null)
+      ),
+    })
+  }, [minimap])
 
   return <div ref={hostRef} data-testid="code-editor" className="h-full w-full overflow-hidden" />
 }

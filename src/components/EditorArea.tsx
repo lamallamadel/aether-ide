@@ -78,9 +78,9 @@ export function EditorArea() {
                 fontFamily={editorFontFamily}
                 theme={editorTheme}
                 wordWrap={editorWordWrap}
+                minimap={editorMinimap}
               />
             </div>
-            {editorMinimap ? <div className="w-10 bg-black/10 border-l border-white/5" /> : null}
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-gray-600">
