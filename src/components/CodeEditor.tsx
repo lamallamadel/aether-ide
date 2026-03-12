@@ -7,9 +7,11 @@ import {
   defaultKeymap,
   indentWithTab,
 } from '@codemirror/commands'
+import { highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search'
 import { keymap } from '@codemirror/view'
 import { Compartment, EditorState, Facet } from '@codemirror/state'
 import { EditorView, drawSelection, highlightActiveLine, highlightSpecialChars, lineNumbers } from '@codemirror/view'
+import { search, searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search'
 import { showMinimap } from '@replit/codemirror-minimap'
 import type { EditorCommand } from '../state/editorStore'
 import { useEditorStore } from '../state/editorStore'
@@ -257,7 +259,9 @@ export function CodeEditor(props: {
         drawSelection(),
         highlightActiveLine(),
         history(),
-        keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
+        keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+        search(),
+        highlightSelectionMatches({ highlightWordAroundCursor: true }),
         aiGutter, // Add the AI Gutter
         EditorView.updateListener.of((u) => {
           if (!u.docChanged) return
@@ -292,6 +296,7 @@ export function CodeEditor(props: {
         if (cmd === 'undo') return undo(target)
         if (cmd === 'redo') return redo(target)
         if (cmd === 'selectAll') return selectAll(target)
+        if (cmd === 'findInFile') return openSearchPanel(view)
         if (cmd === 'copy' || cmd === 'paste' || cmd === 'cut') {
           view.focus()
           const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform)

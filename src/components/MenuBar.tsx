@@ -119,7 +119,7 @@ export function MenuBar() {
         { kind: 'action', id: 'edit-copy', label: 'Copy', action: () => executeEditorCommand('copy') || announce('Focus the editor first') },
         { kind: 'action', id: 'edit-paste', label: 'Paste', action: () => executeEditorCommand('paste') || announce('Focus the editor first') },
         { kind: 'separator', id: 'edit-sep-2' },
-        { kind: 'action', id: 'edit-find', label: 'Find', action: () => setGlobalSearchOpen(true) },
+        { kind: 'action', id: 'edit-find', label: 'Find', action: () => executeEditorCommand('findInFile') || setGlobalSearchOpen(true) },
       ],
       Selection: [
         { kind: 'action', id: 'sel-all', label: 'Select All', action: () => executeEditorCommand('selectAll') || announce('Focus the editor first') },

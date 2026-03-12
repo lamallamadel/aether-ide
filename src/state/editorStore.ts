@@ -7,7 +7,7 @@ import type { PerfMetrics } from '../services/perf/perfMonitor'
 export type AiHealthStatus = 'full' | 'degraded' | 'offline' | 'loading'
 
 /** Commands exécutables depuis le MenuBar vers CodeMirror */
-export type EditorCommand = 'undo' | 'redo' | 'copy' | 'cut' | 'paste' | 'selectAll'
+export type EditorCommand = 'undo' | 'redo' | 'copy' | 'cut' | 'paste' | 'selectAll' | 'findInFile'
 
 export interface EditorState {
   files: FileNode[]
