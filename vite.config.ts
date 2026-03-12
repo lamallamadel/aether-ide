@@ -4,6 +4,12 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      path: 'path-browserify',
+      url: 'url',
+    },
+  },
   build: {
     rollupOptions: {
       onwarn(warning, warn) {
@@ -15,7 +21,7 @@ export default defineConfig({
         }
         warn(warning)
       },
-      external: ['fs/promises', 'module', 'path', 'url'],
+      external: ['fs/promises', 'module'],
     }
   },
   test: {

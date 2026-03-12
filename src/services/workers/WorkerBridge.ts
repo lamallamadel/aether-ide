@@ -68,7 +68,7 @@ class WorkerBridge {
     }
 
     private rejectAllPending(reason: string) {
-        for (const [id, { reject, timer }] of this.pendingRequests) {
+        for (const [_id, { reject, timer }] of this.pendingRequests) {
             clearTimeout(timer)
             reject(new Error(reason))
         }
