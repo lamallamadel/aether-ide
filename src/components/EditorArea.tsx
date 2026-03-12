@@ -2,8 +2,7 @@ import { memo, useCallback } from 'react'
 import { Command, FileCode, X } from 'lucide-react'
 import { useEditorStore } from '../state/editorStore'
 import { CodeEditor } from './CodeEditor'
-import { parseFileContent, languageIdForFile } from '../services/syntax/syntaxClient'
-import { ingestFile } from '../services/graphrag/graphrag'
+import { useFileSync } from '../hooks/useFileSync'
 
 const TabSystem = memo(() => {
   const { openFiles, activeFileId, setActiveFile, closeFile } = useEditorStore()
@@ -47,30 +46,21 @@ export function EditorArea() {
   const {
     activeFileId,
     getFileContent,
-    setFileContent,
-    setSyntaxForFile,
     editorFontSizePx,
     editorWordWrap,
     editorMinimap,
     editorTheme,
     editorFontFamily,
   } = useEditorStore()
+  const { syncFile } = useFileSync()
   const content = activeFileId ? getFileContent(activeFileId) : '// Select a file to view content'
 
   const handleEditorChange = useCallback(
     (next: string) => {
       if (!activeFileId) return
-      setFileContent(activeFileId, next)
-      const lang = languageIdForFile(activeFileId)
-      if (!lang) return
-
-      parseFileContent(lang, next).then((res) => {
-        if (!res.tree) return
-        setSyntaxForFile(activeFileId, res.tree, res.symbols)
-        ingestFile(activeFileId, next, res.symbols)
-      })
+      syncFile(activeFileId, next)
     },
-    [activeFileId, setFileContent, setSyntaxForFile]
+    [activeFileId, syncFile]
   )
 
   return (
