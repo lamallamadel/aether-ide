@@ -1,4 +1,4 @@
-# Aether Code (prototype IDE IA)
+# Aether Code IDE (prototype IDE IA)
 
 Application web inspirée de Sublime/Cursor, implémentée à partir des spécifications :
 - [Maquette.md](./Maquette.md) : UI + état + workflows
