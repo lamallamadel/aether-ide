@@ -8,7 +8,7 @@ import {
   indentWithTab,
 } from '@codemirror/commands'
 import { keymap } from '@codemirror/view'
-import { Compartment, EditorState } from '@codemirror/state'
+import { Compartment, EditorState, Facet } from '@codemirror/state'
 import { EditorView, drawSelection, highlightActiveLine, highlightSpecialChars, lineNumbers } from '@codemirror/view'
 import { showMinimap } from '@replit/codemirror-minimap'
 import type { EditorCommand } from '../state/editorStore'
@@ -18,6 +18,8 @@ import { json } from '@codemirror/lang-json'
 import { markdown } from '@codemirror/lang-markdown'
 import { gutter, GutterMarker } from '@codemirror/view'
 import { useEffect, useMemo, useRef } from 'react'
+import type { ExtractedSymbol } from '../services/syntax/syntaxTypes'
+import type { SerializedNode, SerializedTree } from '../services/syntax/syntaxTypes'
 
 // --- Syntax Highlighting ---
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language'
@@ -42,12 +44,40 @@ const aetherHighlightStyle = HighlightStyle.define([
   { tag: tags.invalid, color: '#ff0000' },
 ])
 
-// --- AI Gutter Implementation ---
+// --- AI Gutter: connected to symbolsByFile + syntaxTrees ---
 
-const MOCK_AI_SUGGESTIONS: Record<number, 'warning' | 'suggestion'> = {
-  10: 'warning',
-  15: 'suggestion',
-  22: 'suggestion',
+const aiGutterDataFacet = Facet.define<Record<number, 'warning' | 'suggestion'>, Record<number, 'warning' | 'suggestion'>>({
+  combine: (values) => values[0] ?? {},
+})
+
+const lineFromOffset = (content: string, offset: number): number =>
+  content.slice(0, Math.min(offset, content.length)).split('\n').length
+
+const collectErrorLines = (node: SerializedNode): number[] => {
+  const lines: number[] = []
+  if (node.type === 'ERROR') lines.push(node.startPosition.row + 1)
+  for (const c of node.children ?? []) lines.push(...collectErrorLines(c))
+  return lines
+}
+
+const buildGutterData = (
+  content: string,
+  symbols: ExtractedSymbol[],
+  tree: SerializedTree | undefined
+): Record<number, 'warning' | 'suggestion'> => {
+  const out: Record<number, 'warning' | 'suggestion'> = {}
+  for (const s of symbols) {
+    if (['function', 'class', 'import', 'export'].includes(s.kind)) {
+      const line = lineFromOffset(content, s.startIndex)
+      if (!out[line] || out[line] === 'suggestion') out[line] = 'suggestion'
+    }
+  }
+  if (tree?.root) {
+    for (const line of collectErrorLines(tree.root)) {
+      out[line] = 'warning'
+    }
+  }
+  return out
 }
 
 class AIGutterMarker extends GutterMarker {
@@ -61,21 +91,15 @@ class AIGutterMarker extends GutterMarker {
   toDOM() {
     const span = document.createElement('span')
     span.className = 'flex items-center justify-center w-full h-full cursor-pointer hover:bg-white/10 rounded transition-colors'
-    
-    // Using inline SVG for performance in raw DOM
     if (this.type === 'warning') {
       span.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgb(234 179 8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`
     } else {
       span.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgb(168 85 247)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`
     }
-    
     span.onclick = (e) => {
       e.stopPropagation()
-      // Dispatch a custom event that React components can listen to, or use a store
-      const event = new CustomEvent('aether-ai-click', { detail: { type: this.type } })
-      window.dispatchEvent(event)
+      window.dispatchEvent(new CustomEvent('aether-ai-click', { detail: { type: this.type } }))
     }
-    
     return span
   }
 }
@@ -83,9 +107,10 @@ class AIGutterMarker extends GutterMarker {
 const aiGutter = gutter({
   class: 'cm-ai-gutter',
   lineMarker(view, line) {
+    const data = view.state.facet(aiGutterDataFacet)
     const lineNum = view.state.doc.lineAt(line.from).number
-    const suggestion = MOCK_AI_SUGGESTIONS[lineNum]
-    return suggestion ? new AIGutterMarker(suggestion) : null
+    const marker = data[lineNum]
+    return marker ? new AIGutterMarker(marker) : null
   },
   initialSpacer: () => new AIGutterMarker('suggestion'),
 })
@@ -174,6 +199,15 @@ export function CodeEditor(props: {
   const wrapCompartment = useRef(new Compartment()).current
   const themeCompartment = useRef(new Compartment()).current
   const minimapCompartment = useRef(new Compartment()).current
+  const aiGutterDataCompartment = useRef(new Compartment()).current
+
+  const symbols = useEditorStore((s) => s.symbolsByFile[fileId ?? ''] ?? [])
+  const syntaxTree = useEditorStore((s) => s.syntaxTrees[fileId ?? ''])
+
+  const gutterData = useMemo(
+    () => buildGutterData(value, symbols, syntaxTree),
+    [value, symbols, syntaxTree]
+  )
 
   const language = useMemo(() => languageForFile(fileId), [fileId])
   const baseTheme = useMemo(() => {
@@ -245,6 +279,7 @@ export function CodeEditor(props: {
               })
             : showMinimap.of(null)
         ),
+        aiGutterDataCompartment.of(aiGutterDataFacet.of(gutterData)),
       ],
     })
 
@@ -330,6 +365,12 @@ export function CodeEditor(props: {
       ),
     })
   }, [minimap])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({ effects: aiGutterDataCompartment.reconfigure(aiGutterDataFacet.of(gutterData)) })
+  }, [gutterData])
 
   return <div ref={hostRef} data-testid="code-editor" className="h-full w-full overflow-hidden" />
 }
