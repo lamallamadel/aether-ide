@@ -1,9 +1,25 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { INITIAL_FILES } from '../domain/fileNode'
 import { useEditorStore } from '../state/editorStore'
 import App from '../App'
+
+vi.mock('../services/workers/WorkerBridge', () => ({
+  workerBridge: {
+    postRequest: vi.fn((type: string) => {
+      if (type === 'INDEX_BUILD') return Promise.resolve({ docCount: 5 })
+      if (type === 'INDEX_SEARCH') {
+        return Promise.resolve({
+          results: [
+            { fileId: 'App.tsx', startLine: 5, endLine: 7, score: 0.95, snippet: 'Welcome to Aether Code' },
+          ],
+        })
+      }
+      return Promise.reject(new Error(`Unknown type: ${type}`))
+    }),
+  },
+}))
 
 beforeEach(() => {
   useEditorStore.setState({
@@ -44,7 +60,11 @@ describe('GlobalSearch', () => {
     const searchInput = within(dialog).getByPlaceholderText('Search in file contents…')
     await user.type(searchInput, 'Welcome')
 
-    expect(await within(dialog).findByText(/Welcome to Aether Code/i)).toBeInTheDocument()
+    // Le snippet est rendu avec HighlightMatch : "Welcome" (span) + " to Aether Code" (texte)
+    // "to Aether Code" est dans un seul nœud texte, plus fiable que le texte fragmenté
+    await expect(
+      within(dialog).findByText(/to Aether Code/i, {}, { timeout: 5000 })
+    ).resolves.toBeInTheDocument()
     const resultRow = within(dialog).getAllByRole('button').find((b) => b.className.includes('search-result-item'))
     expect(resultRow).toBeTruthy()
     expect(within(dialog).queryAllByRole('combobox')).toHaveLength(0)

@@ -1,6 +1,15 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterEach, vi } from 'vitest'
+
+// Mock AetherDB for tests (no IndexedDB in Node/jsdom) — VectorStore and graphrag depend on it
+vi.mock('../services/db/AetherDB', () => ({
+  db: {
+    getVectorsForFile: vi.fn().mockResolvedValue([]),
+    upsertVectors: vi.fn().mockResolvedValue(undefined),
+    getAllVectors: vi.fn().mockResolvedValue([]),
+  },
+}))
 
 afterEach(() => {
   cleanup()

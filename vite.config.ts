@@ -31,5 +31,10 @@ export default defineConfig({
     pool: 'vmThreads',
     maxWorkers: 1,
     fileParallelism: false,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      exclude: ['node_modules/', '**/*.test.ts', '**/*.test.tsx', 'src/test/'],
+    },
   },
 })
