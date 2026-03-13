@@ -84,11 +84,92 @@ describe('editorStore', () => {
   })
 
   it('hasFileHandle retourne false sans handle, true avec', () => {
-    const { hasFileHandle, setTerminalPanelOpen } = useEditorStore.getState()
+    const { hasFileHandle } = useEditorStore.getState()
     expect(hasFileHandle('App.tsx')).toBe(false)
     useEditorStore.setState({
       fileHandles: { 'App.tsx': {} as FileSystemFileHandle },
     })
     expect(hasFileHandle('App.tsx')).toBe(true)
+  })
+
+  it('upsertWorktreeChange ajoute une modification', () => {
+    const { upsertWorktreeChange } = useEditorStore.getState()
+    upsertWorktreeChange({
+      fileId: 'App.tsx',
+      originalContent: 'hello',
+      proposedContent: 'hi',
+    })
+    const state = useEditorStore.getState()
+    expect(state.worktreeChanges['App.tsx']).toEqual({
+      fileId: 'App.tsx',
+      originalContent: 'hello',
+      proposedContent: 'hi',
+    })
+  })
+
+  it('rejectWorktreeChange retire une modification', () => {
+    const { upsertWorktreeChange, rejectWorktreeChange } = useEditorStore.getState()
+    upsertWorktreeChange({ fileId: 'App.tsx', originalContent: 'a', proposedContent: 'b' })
+    rejectWorktreeChange('App.tsx')
+    expect(useEditorStore.getState().worktreeChanges).toEqual({})
+  })
+
+  it('applyWorktreeChange applique le contenu et retire la modif', () => {
+    const { upsertWorktreeChange, applyWorktreeChange, getFileContent } = useEditorStore.getState()
+    upsertWorktreeChange({
+      fileId: 'App.tsx',
+      originalContent: 'Welcome to Aether Code',
+      proposedContent: 'Bienvenue sur Aether Code',
+    })
+    applyWorktreeChange('App.tsx')
+    expect(getFileContent('App.tsx')).toContain('Bienvenue')
+    expect(useEditorStore.getState().worktreeChanges).toEqual({})
+  })
+
+  it('clearWorktree vide toutes les modifications', () => {
+    const { upsertWorktreeChange, clearWorktree } = useEditorStore.getState()
+    upsertWorktreeChange({ fileId: 'App.tsx', originalContent: 'a', proposedContent: 'b' })
+    upsertWorktreeChange({ fileId: 'main.tsx', originalContent: 'x', proposedContent: 'y' })
+    clearWorktree()
+    expect(useEditorStore.getState().worktreeChanges).toEqual({})
+  })
+
+  it('createUntitledFile crée un fichier et l\'ouvre', () => {
+    const { createUntitledFile, findNode } = useEditorStore.getState()
+    createUntitledFile()
+    const state = useEditorStore.getState()
+    expect(state.activeFileId).toMatch(/^Untitled-\d+\.ts$/)
+    expect(findNode(state.activeFileId!)).toBeTruthy()
+    expect(state.openFiles).toContain(state.activeFileId)
+  })
+
+  it('setEditorFontSizePx, toggleEditorWordWrap, toggleEditorMinimap', () => {
+    const { setEditorFontSizePx, toggleEditorWordWrap, toggleEditorMinimap } = useEditorStore.getState()
+    setEditorFontSizePx(16)
+    expect(useEditorStore.getState().editorFontSizePx).toBe(16)
+    toggleEditorWordWrap()
+    expect(useEditorStore.getState().editorWordWrap).toBe(true)
+    toggleEditorMinimap()
+    expect(useEditorStore.getState().editorMinimap).toBe(false)
+  })
+
+  it('setMissionControlOpen, setGlobalSearchOpen, setSettingsOpen', () => {
+    const { setMissionControlOpen, setGlobalSearchOpen, setSettingsOpen } = useEditorStore.getState()
+    setMissionControlOpen(true)
+    expect(useEditorStore.getState().missionControlOpen).toBe(true)
+    setGlobalSearchOpen(true)
+    expect(useEditorStore.getState().globalSearchOpen).toBe(true)
+    setSettingsOpen(true)
+    expect(useEditorStore.getState().settingsOpen).toBe(true)
+  })
+
+  it('setSyntaxForFile met à jour syntaxTrees et symbolsByFile', () => {
+    const { setSyntaxForFile } = useEditorStore.getState()
+    const tree = { root: { type: 'PROGRAM' as const, children: [] } }
+    const symbols = [{ kind: 'variable' as const, name: 'x', startIndex: 0, endIndex: 5 }]
+    setSyntaxForFile('App.tsx', tree, symbols)
+    const state = useEditorStore.getState()
+    expect(state.syntaxTrees['App.tsx']).toEqual(tree)
+    expect(state.symbolsByFile['App.tsx']).toEqual(symbols)
   })
 })
