@@ -1,5 +1,27 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { getAllChunks } from './graphragDb'
 import { buildChunksFromSymbols, graphragQuery } from './graphrag'
+
+const mockChunks = [
+  {
+    id: 'f1:0:50',
+    fileId: 'f1.ts',
+    startIndex: 0,
+    endIndex: 50,
+    text: 'function hello world example',
+    symbols: ['hello'],
+    updatedAt: Date.now(),
+  },
+  {
+    id: 'f2:0:30',
+    fileId: 'f2.ts',
+    startIndex: 0,
+    endIndex: 30,
+    text: 'export const foo bar',
+    symbols: ['foo'],
+    updatedAt: Date.now(),
+  },
+]
 
 describe('buildChunksFromSymbols', () => {
   it('returns chunks from symbols', () => {
@@ -31,6 +53,24 @@ describe('buildChunksFromSymbols', () => {
     const chunks = buildChunksFromSymbols('f.ts', content, symbols)
     expect(chunks).toHaveLength(1) // fallback chunk
   })
+
+  it('caps chunk text at maxChars', () => {
+    const longContent = 'x'.repeat(3000)
+    const symbols = [{ kind: 'function' as const, name: 'f', startIndex: 0, endIndex: 3000 }]
+    const chunks = buildChunksFromSymbols('f.ts', longContent, symbols)
+    expect(chunks[0].text.length).toBeLessThanOrEqual(2200)
+  })
+
+  it('sorts symbols by startIndex', () => {
+    const content = 'a b c d e'
+    const symbols = [
+      { kind: 'function' as const, name: 'z', startIndex: 8, endIndex: 9 },
+      { kind: 'function' as const, name: 'a', startIndex: 0, endIndex: 1 },
+    ]
+    const chunks = buildChunksFromSymbols('f.ts', content, symbols)
+    expect(chunks[0].symbols).toContain('a')
+    expect(chunks[1].symbols).toContain('z')
+  })
 })
 
 describe('graphragQuery', () => {
@@ -40,6 +80,29 @@ describe('graphragQuery', () => {
 
   it('returns empty array when indexedDB is undefined', async () => {
     const result = await graphragQuery('test query')
+    expect(result).toEqual([])
+  })
+})
+
+describe('graphragQuery with indexedDB', () => {
+  beforeEach(() => {
+    vi.stubGlobal('indexedDB', {})
+  })
+
+  it('returns keyword results when indexedDB and chunks exist', async () => {
+    const result = await graphragQuery('hello')
+    expect(result.length).toBeGreaterThan(0)
+    expect(result[0].chunk.text).toContain('hello')
+    expect(result[0].score).toBeGreaterThan(0)
+  })
+
+  it('respects topK limit', async () => {
+    const result = await graphragQuery('function', 1)
+    expect(result).toHaveLength(1)
+  })
+
+  it('returns empty when no matches', async () => {
+    const result = await graphragQuery('xyznonexistenttoken123')
     expect(result).toEqual([])
   })
 })

@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { INITIAL_FILES } from '../domain/fileNode'
-import { useEditorStore } from './editorStore'
+import {
+  findNode as findNodeUtil,
+  toggleNode,
+  updateFileContentInTree,
+  insertFileIntoFolder,
+  useEditorStore,
+} from './editorStore'
 
 beforeEach(() => {
   useEditorStore.setState({

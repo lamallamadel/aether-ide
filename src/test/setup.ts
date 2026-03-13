@@ -32,6 +32,12 @@ vi.mock('../services/perf/perfMonitor', () => ({
   startPerfMonitor: vi.fn(() => () => {}),
 }))
 
+// Mock graphragDb for tests (no IndexedDB in Node/jsdom)
+vi.mock('../services/graphrag/graphragDb', () => ({
+  getAllChunks: vi.fn().mockResolvedValue([]),
+  upsertChunks: vi.fn().mockResolvedValue(undefined),
+}))
+
 // Mock AetherDB for tests (no IndexedDB in Node/jsdom)
 vi.mock('../services/db/AetherDB', () => ({
   db: {
