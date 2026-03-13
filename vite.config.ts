@@ -35,6 +35,12 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html'],
       exclude: ['node_modules/', '**/*.test.ts', '**/*.test.tsx', 'src/test/'],
+      thresholds: {
+        statements: 50,
+        branches: 40,
+        functions: 50,
+        lines: 50,
+      },
     },
   },
 })
