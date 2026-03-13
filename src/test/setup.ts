@@ -41,6 +41,44 @@ vi.mock('../services/db/AetherDB', () => ({
   },
 }))
 
+// Mock @xterm/xterm and @xterm/addon-fit for TerminalPanel (no DOM canvas in jsdom)
+// Exposed for TerminalPanel.test assertions
+export const xtermMocks = {
+  dispose: vi.fn(),
+  open: vi.fn(),
+  writeln: vi.fn(),
+  write: vi.fn(),
+  loadAddon: vi.fn(),
+  onData: vi.fn(),
+  fit: vi.fn(),
+}
+
+vi.mock('@xterm/xterm', () => ({
+  Terminal: class MockTerminal {
+    open = xtermMocks.open
+    writeln = xtermMocks.writeln
+    write = xtermMocks.write
+    loadAddon = xtermMocks.loadAddon
+    onData = xtermMocks.onData
+    dispose = xtermMocks.dispose
+  },
+}))
+
+vi.mock('@xterm/addon-fit', () => ({
+  FitAddon: class MockFitAddon {
+    fit = xtermMocks.fit
+  },
+}))
+
+// ResizeObserver not available in jsdom
+vi.stubGlobal(
+  'ResizeObserver',
+  class MockResizeObserver {
+    observe = vi.fn()
+    disconnect = vi.fn()
+  }
+)
+
 afterEach(() => {
   cleanup()
 })

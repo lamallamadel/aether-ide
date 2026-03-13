@@ -64,6 +64,9 @@ describe('GlobalSearch', () => {
     const searchInput = within(dialog).getByPlaceholderText('Search in file contents…')
     await user.type(searchInput, 'Welcome')
 
+    // Debounce 150ms + async search — wait for results
+    await new Promise((r) => setTimeout(r, 250))
+
     // Le snippet est rendu avec HighlightMatch : "Welcome" (span) + " to Aether Code" (texte)
     // "to Aether Code" est dans un seul nœud texte, plus fiable que le texte fragmenté
     await expect(
