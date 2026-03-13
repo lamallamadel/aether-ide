@@ -1,11 +1,14 @@
 import { memo, useCallback } from 'react'
 import { Command, FileCode, X } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
 import { CodeEditor } from './CodeEditor'
 import { useFileSync } from '../hooks/useFileSync'
 
 const TabSystem = memo(() => {
-  const { openFiles, activeFileId, setActiveFile, closeFile } = useEditorStore()
+  const { openFiles, activeFileId, setActiveFile, closeFile } = useEditorStore(
+    useShallow((s) => ({ openFiles: s.openFiles, activeFileId: s.activeFileId, setActiveFile: s.setActiveFile, closeFile: s.closeFile }))
+  )
 
   return (
     <div className="flex h-9 bg-[#0a0a0a] border-b border-white/5 overflow-x-auto no-scrollbar">
@@ -51,7 +54,17 @@ export function EditorArea() {
     editorMinimap,
     editorTheme,
     editorFontFamily,
-  } = useEditorStore()
+  } = useEditorStore(
+    useShallow((s) => ({
+      activeFileId: s.activeFileId,
+      getFileContent: s.getFileContent,
+      editorFontSizePx: s.editorFontSizePx,
+      editorWordWrap: s.editorWordWrap,
+      editorMinimap: s.editorMinimap,
+      editorTheme: s.editorTheme,
+      editorFontFamily: s.editorFontFamily,
+    }))
+  )
   const { syncFile } = useFileSync()
   const content = activeFileId ? getFileContent(activeFileId) : '// Select a file to view content'
 

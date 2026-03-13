@@ -1,5 +1,6 @@
 import { AlertTriangle, Bot, Brain, Split, X } from 'lucide-react'
 import { useEditorStore } from '../state/editorStore'
+import { useShallow } from 'zustand/react/shallow'
 import type { AiHealthStatus } from '../state/editorStore'
 
 const AI_HEALTH_CONFIG: Record<AiHealthStatus, { color: string; label: string; pulse: boolean }> = {
@@ -10,7 +11,9 @@ const AI_HEALTH_CONFIG: Record<AiHealthStatus, { color: string; label: string; p
 }
 
 export function StatusBar() {
-  const { editorFontSizePx, perf, activeFileId, aiHealth, indexingError, storageQuotaExceeded } = useEditorStore()
+  const { editorFontSizePx, perf, activeFileId, aiHealth, indexingError, storageQuotaExceeded } = useEditorStore(
+    useShallow((s) => ({ editorFontSizePx: s.editorFontSizePx, perf: s.perf, activeFileId: s.activeFileId, aiHealth: s.aiHealth, indexingError: s.indexingError, storageQuotaExceeded: s.storageQuotaExceeded }))
+  )
 
   const languageLabel = activeFileId ? getLanguageLabel(activeFileId) : 'Plain Text'
   const healthConfig = AI_HEALTH_CONFIG[aiHealth]

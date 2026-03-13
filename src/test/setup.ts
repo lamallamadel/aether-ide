@@ -2,6 +2,13 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach, vi } from 'vitest'
 
+// Mock @huggingface/transformers — onnxruntime-node fails in Node/vitest (DLL)
+vi.mock('@huggingface/transformers', () => ({
+  pipeline: vi.fn().mockResolvedValue(
+    vi.fn().mockResolvedValue({ data: new Float32Array(384) })
+  ),
+}))
+
 // Mock WorkerBridge for tests (Worker is not defined in Node/vitest)
 vi.mock('../services/workers/WorkerBridge', () => ({
   workerBridge: {

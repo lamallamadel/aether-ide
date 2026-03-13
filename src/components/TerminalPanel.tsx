@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { X } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
 import type { FileNode } from '../domain/fileNode'
 
@@ -32,7 +33,13 @@ function getRootName(files: FileNode[]): string {
 
 export function TerminalPanel() {
   const containerRef = useRef<HTMLDivElement>(null)
-  const { terminalPanelOpen, setTerminalPanelOpen, terminalPanelHeight } = useEditorStore()
+  const { terminalPanelOpen, setTerminalPanelOpen, terminalPanelHeight } = useEditorStore(
+    useShallow((s) => ({
+      terminalPanelOpen: s.terminalPanelOpen,
+      setTerminalPanelOpen: s.setTerminalPanelOpen,
+      terminalPanelHeight: s.terminalPanelHeight,
+    }))
+  )
 
   useEffect(() => {
     if (!terminalPanelOpen || !containerRef.current) return

@@ -14,6 +14,7 @@ import { EditorView, drawSelection, highlightActiveLine, highlightSpecialChars, 
 import { showMinimap } from '@replit/codemirror-minimap'
 import type { EditorCommand } from '../state/editorStore'
 import { useEditorStore } from '../state/editorStore'
+import { useShallow } from 'zustand/react/shallow'
 import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
 import { markdown } from '@codemirror/lang-markdown'
@@ -60,6 +61,8 @@ const collectErrorLines = (node: SerializedNode): number[] => {
   for (const c of node.children ?? []) lines.push(...collectErrorLines(c))
   return lines
 }
+
+const EMPTY_SYMBOLS: ExtractedSymbol[] = []
 
 const buildGutterData = (
   content: string,
@@ -202,8 +205,8 @@ export function CodeEditor(props: {
   const minimapCompartment = useRef(new Compartment()).current
   const aiGutterDataCompartment = useRef(new Compartment()).current
 
-  const symbols = useEditorStore((s) => s.symbolsByFile[fileId ?? ''] ?? [])
-  const syntaxTree = useEditorStore((s) => s.syntaxTrees[fileId ?? ''])
+  const symbols = useEditorStore(useShallow((s) => s.symbolsByFile[fileId ?? ''] ?? EMPTY_SYMBOLS))
+  const syntaxTree = useEditorStore(useShallow((s) => s.syntaxTrees[fileId ?? '']))
 
   const gutterData = useMemo(
     () => buildGutterData(value, symbols, syntaxTree),

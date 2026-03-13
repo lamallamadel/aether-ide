@@ -1,8 +1,11 @@
 import { Layout, Layers, Sparkles, Scan, Sliders, Terminal } from 'lucide-react'
 import { useEditorStore } from '../state/editorStore'
+import { useShallow } from 'zustand/react/shallow'
 
 export function ActivityBar() {
-  const { setCommandPaletteOpen, toggleAiPanel, setSettingsOpen, toggleSidebar, toggleTerminalPanel } = useEditorStore()
+  const { setCommandPaletteOpen, toggleAiPanel, setSettingsOpen, toggleSidebar, toggleTerminalPanel } = useEditorStore(
+    useShallow((s) => ({ setCommandPaletteOpen: s.setCommandPaletteOpen, toggleAiPanel: s.toggleAiPanel, setSettingsOpen: s.setSettingsOpen, toggleSidebar: s.toggleSidebar, toggleTerminalPanel: s.toggleTerminalPanel }))
+  )
 
   return (
     <div className="w-12 bg-[#111111] border-r border-white/5 flex flex-col items-center py-4 gap-4 z-20 shrink-0">

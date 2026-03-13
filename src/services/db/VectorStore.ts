@@ -19,14 +19,16 @@ export interface EmbeddingProvider {
     embed(text: string): Promise<Float32Array>
 }
 
-import { pipeline } from '@xenova/transformers'
+import { pipeline } from '@huggingface/transformers'
 
 export const transformersEmbeddingProvider: EmbeddingProvider = {
     embed: async (text: string) => {
         const extractor = await PipelineSingleton.getInstance()
         const output = await extractor(text, { pooling: 'mean', normalize: true })
-        return output.data as Float32Array
-    }
+        // @huggingface/transformers returns Tensor; .data is Float32Array
+        const data = (output as { data?: Float32Array }).data
+        return data ?? new Float32Array((output as number[]).flat?.() ?? (Array.isArray(output) ? output : []))
+    },
 }
 
 class PipelineSingleton {
@@ -35,27 +37,28 @@ class PipelineSingleton {
     private static loading: Promise<any> | null = null
     private static instance: any = null
 
-    static async getInstance(progress_callback?: Function) {
-        // Already loaded — fast path
+    static async getInstance() {
         if (this.instance) return this.instance
 
         if (!this.loading) {
-            this.loading = pipeline(this.task as any, this.model, { progress_callback })
-                .then((inst) => {
-                    this.instance = inst
-                    return inst
+            const load = async (device?: 'webgpu') => {
+                const extractor = await pipeline(this.task as 'feature-extraction', this.model, {
+                    ...(device && { device }),
                 })
-                .catch((err) => {
-                    // Reset so next call retries instead of returning a rejected promise
-                    this.loading = null
-                    this.instance = null
-                    throw err
-                })
+                return extractor
+            }
+            this.loading = load('webgpu').catch(() => load()).then((inst) => {
+                this.instance = inst
+                return inst
+            }).catch((err) => {
+                this.loading = null
+                this.instance = null
+                throw err
+            })
         }
         return this.loading
     }
 
-    /** Force-reset the singleton (e.g. after network recovery) */
     static reset() {
         this.loading = null
         this.instance = null

@@ -1,5 +1,6 @@
 import { Check, Cloud, Monitor, Palette, Settings, Shield, Type, X } from 'lucide-react'
 import { useCallback, useEffect, useRef } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
 import { ThemedSelect } from './ThemedSelect'
 
@@ -21,7 +22,26 @@ export function SettingsModal() {
     setEditorFontFamily,
     ideThemeColor,
     setIdeThemeColor,
-  } = useEditorStore()
+  } = useEditorStore(
+    useShallow((s) => ({
+      settingsOpen: s.settingsOpen,
+      setSettingsOpen: s.setSettingsOpen,
+      editorFontSizePx: s.editorFontSizePx,
+      setEditorFontSizePx: s.setEditorFontSizePx,
+      editorMinimap: s.editorMinimap,
+      toggleEditorMinimap: s.toggleEditorMinimap,
+      editorWordWrap: s.editorWordWrap,
+      toggleEditorWordWrap: s.toggleEditorWordWrap,
+      aiMode: s.aiMode,
+      setAiMode: s.setAiMode,
+      editorTheme: s.editorTheme,
+      setEditorTheme: s.setEditorTheme,
+      editorFontFamily: s.editorFontFamily,
+      setEditorFontFamily: s.setEditorFontFamily,
+      ideThemeColor: s.ideThemeColor,
+      setIdeThemeColor: s.setIdeThemeColor,
+    }))
+  )
 
   const dialogRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<Element | null>(null)

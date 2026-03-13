@@ -1,5 +1,6 @@
 import { Menu, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
 import { isSupported, pickDirectory } from '../services/fileSystem/fileSystemAccess'
 
@@ -47,7 +48,34 @@ export function MenuBar() {
     saveFileToDisk,
     hasFileHandle,
     toggleTerminalPanel,
-  } = useEditorStore()
+  } = useEditorStore(
+    useShallow((s) => ({
+      activeFileId: s.activeFileId,
+      getFileContent: s.getFileContent,
+      setCommandPaletteOpen: s.setCommandPaletteOpen,
+      setGlobalSearchOpen: s.setGlobalSearchOpen,
+      setSettingsOpen: s.setSettingsOpen,
+      commandPaletteOpen: s.commandPaletteOpen,
+      globalSearchOpen: s.globalSearchOpen,
+      settingsOpen: s.settingsOpen,
+      missionControlOpen: s.missionControlOpen,
+      toggleSidebar: s.toggleSidebar,
+      toggleAiPanel: s.toggleAiPanel,
+      createUntitledFile: s.createUntitledFile,
+      closeFile: s.closeFile,
+      editorFontSizePx: s.editorFontSizePx,
+      setEditorFontSizePx: s.setEditorFontSizePx,
+      editorWordWrap: s.editorWordWrap,
+      toggleEditorWordWrap: s.toggleEditorWordWrap,
+      editorMinimap: s.editorMinimap,
+      toggleEditorMinimap: s.toggleEditorMinimap,
+      executeEditorCommand: s.executeEditorCommand,
+      loadProjectFromDirectory: s.loadProjectFromDirectory,
+      saveFileToDisk: s.saveFileToDisk,
+      hasFileHandle: s.hasFileHandle,
+      toggleTerminalPanel: s.toggleTerminalPanel,
+    }))
+  )
 
   const [activeMenu, setActiveMenu] = useState<MenuKey | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)

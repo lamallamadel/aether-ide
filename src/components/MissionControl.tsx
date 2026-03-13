@@ -1,5 +1,6 @@
 import { Check, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
 import { lineDiff } from '../services/diff/lineDiff'
 import { assessProposedChange } from '../services/security/riskEngine'
@@ -16,7 +17,20 @@ export function MissionControl() {
     activeFileId,
     getFileContent,
     findNode,
-  } = useEditorStore()
+  } = useEditorStore(
+    useShallow((s) => ({
+      missionControlOpen: s.missionControlOpen,
+      setMissionControlOpen: s.setMissionControlOpen,
+      worktreeChanges: s.worktreeChanges,
+      upsertWorktreeChange: s.upsertWorktreeChange,
+      applyWorktreeChange: s.applyWorktreeChange,
+      rejectWorktreeChange: s.rejectWorktreeChange,
+      clearWorktree: s.clearWorktree,
+      activeFileId: s.activeFileId,
+      getFileContent: s.getFileContent,
+      findNode: s.findNode,
+    }))
+  )
 
   const changeList = useMemo(() => Object.values(worktreeChanges), [worktreeChanges])
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)

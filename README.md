@@ -56,4 +56,4 @@ npm run build
 ## Limitations connues
 - **Chat IA** : utilise uniquement GraphRAG (retrieval). Pas de génération LLM — les réponses sont des snippets formatés, pas un vrai dialogue.
 - **Fichiers** : arbre statique (`INITIAL_FILES`). Pas de File System Access API ni d'import de projet réel.
-- **Cloud vs Local** : le mode Cloud n'appelle pas d'API externe. Les deux modes utilisent des embeddings locaux (@xenova/transformers).
+- **Cloud vs Local** : le mode Cloud n'appelle pas d'API externe. Les deux modes utilisent des embeddings locaux ([@huggingface/transformers](https://huggingface.co/docs/transformers.js)).

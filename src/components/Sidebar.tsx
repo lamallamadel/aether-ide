@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight, FileText, Code2, Braces, Box, Image as Image
 import type { MouseEvent } from 'react'
 import type { FileNode, FileType } from '../domain/fileNode'
 import { useEditorStore } from '../state/editorStore'
+import { useShallow } from 'zustand/react/shallow'
 
 function FileIcon({ name, type, isActive }: { name: string; type: FileType; isActive: boolean }) {
   const iconColor = isActive ? 'rgb(var(--color-primary-400))' : undefined
@@ -77,7 +78,7 @@ function FileTreeItem({ node, level = 0 }: { node: FileNode; level?: number }) {
 }
 
 export function Sidebar() {
-  const { files, sidebarVisible } = useEditorStore()
+  const { files, sidebarVisible } = useEditorStore(useShallow((s) => ({ files: s.files, sidebarVisible: s.sidebarVisible })))
   if (!sidebarVisible) return null
 
   return (

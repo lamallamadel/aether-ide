@@ -1,6 +1,7 @@
 import { Bot, CornerDownLeft, Eye, EyeOff, FileCode, Search, Settings, Terminal } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FileNode } from '../domain/fileNode'
+import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
 
 function getAllFiles(nodes: FileNode[]): FileNode[] {
@@ -25,7 +26,21 @@ export function CommandPalette() {
     setGlobalSearchOpen,
     setSettingsOpen,
     setMissionControlOpen,
-  } = useEditorStore()
+  } = useEditorStore(
+    useShallow((s) => ({
+      commandPaletteOpen: s.commandPaletteOpen,
+      setCommandPaletteOpen: s.setCommandPaletteOpen,
+      files: s.files,
+      openFile: s.openFile,
+      toggleSidebar: s.toggleSidebar,
+      toggleAiPanel: s.toggleAiPanel,
+      sidebarVisible: s.sidebarVisible,
+      aiPanelVisible: s.aiPanelVisible,
+      setGlobalSearchOpen: s.setGlobalSearchOpen,
+      setSettingsOpen: s.setSettingsOpen,
+      setMissionControlOpen: s.setMissionControlOpen,
+    }))
+  )
   const [search, setSearch] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)

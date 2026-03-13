@@ -1,5 +1,6 @@
 import { AlertTriangle, Brain, CornerDownLeft, Maximize2, Sparkles, User, Bot } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { graphragQuery } from '../services/graphrag/graphrag'
@@ -7,7 +8,9 @@ import { graphragQuery } from '../services/graphrag/graphrag'
 type ChatMessage = { role: 'user' | 'ai'; text: string }
 
 export function AIChatPanel() {
-  const { aiPanelVisible, toggleAiPanel, aiHealth } = useEditorStore()
+  const { aiPanelVisible, toggleAiPanel, aiHealth } = useEditorStore(
+    useShallow((s) => ({ aiPanelVisible: s.aiPanelVisible, toggleAiPanel: s.toggleAiPanel, aiHealth: s.aiHealth }))
+  )
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'ai', text: 'Hello! I am Aether AI. I can see your open files. How can I help you code today?' },
   ])
