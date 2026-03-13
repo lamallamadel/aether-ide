@@ -3,10 +3,10 @@ import { INITIAL_FILES } from '../domain/fileNode'
 import { useEditorStore } from './editorStore'
 
 beforeEach(() => {
-  useEditorStore.setState(
-    {
-      files: INITIAL_FILES,
-      activeFileId: 'App.tsx',
+  useEditorStore.setState({
+    files: INITIAL_FILES,
+    fileHandles: {},
+    activeFileId: 'App.tsx',
       openFiles: ['App.tsx', 'main.tsx'],
       sidebarVisible: true,
       aiPanelVisible: true,

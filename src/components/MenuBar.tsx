@@ -1,6 +1,7 @@
 import { Menu, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useEditorStore } from '../state/editorStore'
+import { isSupported, pickDirectory } from '../services/fileSystem/fileSystemAccess'
 
 type MenuKey = 'File' | 'Edit' | 'Selection' | 'View' | 'Go' | 'Run' | 'Terminal' | 'Help'
 
@@ -27,7 +28,6 @@ export function MenuBar() {
     setCommandPaletteOpen,
     setGlobalSearchOpen,
     setSettingsOpen,
-    setMissionControlOpen,
     commandPaletteOpen,
     globalSearchOpen,
     settingsOpen,
@@ -43,6 +43,10 @@ export function MenuBar() {
     editorMinimap,
     toggleEditorMinimap,
     executeEditorCommand,
+    loadProjectFromDirectory,
+    saveFileToDisk,
+    hasFileHandle,
+    toggleTerminalPanel,
   } = useEditorStore()
 
   const [activeMenu, setActiveMenu] = useState<MenuKey | null>(null)
@@ -71,19 +75,39 @@ export function MenuBar() {
       File: [
         { kind: 'action', id: 'file-new', label: 'New File', action: () => createUntitledFile() },
         { kind: 'action', id: 'file-open', label: 'Open File...', action: () => setCommandPaletteOpen(true) },
-        { kind: 'action', id: 'file-folder', label: 'Open Folder...', action: () => announce('Browser Security: Folder access limited') },
+        {
+          kind: 'action',
+          id: 'file-folder',
+          label: 'Open Folder...',
+          action: async () => {
+            if (!isSupported()) {
+              announce('File System Access non supporté. Utilisez Chrome ou Edge.')
+              return
+            }
+            const handle = await pickDirectory()
+            if (handle) {
+              await loadProjectFromDirectory(handle)
+              announce('Projet chargé')
+            }
+          },
+        },
         { kind: 'separator', id: 'file-sep-1' },
         {
           kind: 'action',
           id: 'file-save',
           label: 'Save',
-          action: () => {
+          action: async () => {
             if (!activeFileId) {
               announce('No active file to save')
               return
             }
-            downloadTextFile(activeFileId, getFileContent(activeFileId))
-            announce(`Saved ${activeFileId}`)
+            if (hasFileHandle(activeFileId)) {
+              const ok = await saveFileToDisk(activeFileId)
+              announce(ok ? `Saved ${activeFileId}` : 'Save failed')
+            } else {
+              downloadTextFile(activeFileId, getFileContent(activeFileId))
+              announce(`Downloaded ${activeFileId}`)
+            }
           },
         },
         {
@@ -147,7 +171,7 @@ export function MenuBar() {
         { kind: 'action', id: 'run-placeholder', label: '(Debug/Run — coming soon)', action: () => announce('Debugging and Run not yet implemented') },
       ],
       Terminal: [
-        { kind: 'action', id: 'term-new', label: 'New Terminal', action: () => setMissionControlOpen(true) },
+        { kind: 'action', id: 'term-new', label: 'New Terminal', action: () => toggleTerminalPanel() },
       ],
       Help: [
         { kind: 'action', id: 'help-welcome', label: 'Welcome', action: () => announce('Welcome') },
@@ -159,10 +183,13 @@ export function MenuBar() {
       activeFileId,
       createUntitledFile,
       getFileContent,
+      hasFileHandle,
+      loadProjectFromDirectory,
+      saveFileToDisk,
       setCommandPaletteOpen,
       setGlobalSearchOpen,
-      setMissionControlOpen,
       setSettingsOpen,
+      toggleTerminalPanel,
       toggleAiPanel,
       toggleSidebar,
       closeFile,
@@ -173,6 +200,7 @@ export function MenuBar() {
       editorMinimap,
       toggleEditorMinimap,
       executeEditorCommand,
+      toggleTerminalPanel,
     ]
   )
 

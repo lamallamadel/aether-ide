@@ -7,6 +7,7 @@ import { GlobalSearch } from './components/GlobalSearch'
 import { MenuBar } from './components/MenuBar'
 import { MissionControl } from './components/MissionControl'
 import { SettingsModal } from './components/SettingsModal'
+import { TerminalPanel } from './components/TerminalPanel'
 import { Sidebar } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
 import { useEditorStore } from './state/editorStore'
@@ -17,7 +18,7 @@ import { vectorStore } from './services/db/VectorStore'
 import { THEME_COLORS } from './lib/theme'
 
 export default function App() {
-  const { setCommandPaletteOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError } =
+  const { files, terminalPanelOpen, setCommandPaletteOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError, toggleTerminalPanel } =
     useEditorStore()
 
   useEffect(() => {
@@ -31,33 +32,32 @@ export default function App() {
   }, [setMissionControlOpen])
 
   useEffect(() => {
-    // Initial Indexing of Files
-    const files = useEditorStore.getState().files
-    // Flatten files for indexing (simplified)
+    // Indexing of Files (re-runs when files change, e.g. after Open Folder)
     const flatFiles: { fileId: string; content: string }[] = []
-    const traverse = (nodes: any[]) => {
-        for (const node of nodes) {
-            if (node.type === 'file') {
-                flatFiles.push({ fileId: node.id, content: node.content })
-            }
-            if (node.children) traverse(node.children)
+    const traverse = (nodes: typeof files) => {
+      for (const node of nodes) {
+        if (node.type === 'file') {
+          flatFiles.push({ fileId: node.id, content: node.content ?? '' })
         }
+        if (node.children) traverse(node.children)
+      }
     }
     traverse(files)
-    
-    console.log('App: Starting Initial Indexing...', { fileCount: flatFiles.length, files: flatFiles.map(f => f.fileId) })
-    
+
+    console.log('App: Indexing...', { fileCount: flatFiles.length, files: flatFiles.map((f) => f.fileId) })
+
     setIndexingError(null)
-    workerBridge.postRequest('INDEX_BUILD', { files: flatFiles })
-        .then((res: any) => {
-          console.log('App: Initial Indexing Complete:', res)
-          setIndexingError(null)
-        })
-        .catch((err: any) => {
-          console.error('App: Indexing Failed:', err)
-          setIndexingError(err?.message ?? 'Indexing failed')
-        })
-  }, [setIndexingError])
+    workerBridge
+      .postRequest('INDEX_BUILD', { files: flatFiles })
+      .then((res: unknown) => {
+        console.log('App: Indexing Complete:', res)
+        setIndexingError(null)
+      })
+      .catch((err: unknown) => {
+        console.error('App: Indexing Failed:', err)
+        setIndexingError(err instanceof Error ? err.message : 'Indexing failed')
+      })
+  }, [files, setIndexingError])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -86,11 +86,15 @@ export default function App() {
         e.preventDefault()
         setSettingsOpen(true)
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === '`') {
+        e.preventDefault()
+        toggleTerminalPanel()
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [setCommandPaletteOpen, setSettingsOpen, toggleAiPanel, toggleSidebar])
+  }, [setCommandPaletteOpen, setSettingsOpen, toggleAiPanel, toggleSidebar, toggleTerminalPanel])
 
   useEffect(() => {
     if (aiMode !== 'local') return
@@ -137,11 +141,14 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0a0a0a] text-white overflow-hidden font-sans">
       <MenuBar />
-      <div className="flex flex-1 overflow-hidden">
-        <ActivityBar />
-        <Sidebar />
-        <EditorArea />
-        <AIChatPanel />
+      <div className="flex flex-1 flex-col overflow-hidden min-h-0">
+        <div className="flex flex-1 overflow-hidden min-h-0">
+          <ActivityBar />
+          <Sidebar />
+          <EditorArea />
+          <AIChatPanel />
+        </div>
+        {terminalPanelOpen && <TerminalPanel />}
       </div>
       <StatusBar />
       <CommandPalette />

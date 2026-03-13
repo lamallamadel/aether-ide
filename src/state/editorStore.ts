@@ -3,6 +3,7 @@ import type { FileNode } from '../domain/fileNode'
 import { INITIAL_FILES } from '../domain/fileNode'
 import type { ExtractedSymbol, SerializedTree } from '../services/syntax/syntaxTypes'
 import type { PerfMetrics } from '../services/perf/perfMonitor'
+import { readDirectoryRecursive, writeFileContent } from '../services/fileSystem/fileSystemAccess'
 
 export type AiHealthStatus = 'full' | 'degraded' | 'offline' | 'loading'
 
@@ -11,6 +12,7 @@ export type EditorCommand = 'undo' | 'redo' | 'copy' | 'cut' | 'paste' | 'select
 
 export interface EditorState {
   files: FileNode[]
+  fileHandles: Record<string, FileSystemFileHandle>
   activeFileId: string | null
   openFiles: string[]
   sidebarVisible: boolean
@@ -19,6 +21,8 @@ export interface EditorState {
   globalSearchOpen: boolean
   settingsOpen: boolean
   missionControlOpen: boolean
+  terminalPanelOpen: boolean
+  terminalPanelHeight: number
   aiMode: 'cloud' | 'local'
   aiHealth: AiHealthStatus
   indexingError: string | null
@@ -47,6 +51,9 @@ export interface EditorState {
   setGlobalSearchOpen: (open: boolean) => void
   setSettingsOpen: (open: boolean) => void
   setMissionControlOpen: (open: boolean) => void
+  setTerminalPanelOpen: (open: boolean) => void
+  setTerminalPanelHeight: (height: number) => void
+  toggleTerminalPanel: () => void
   setAiMode: (mode: 'cloud' | 'local') => void
   setAiHealth: (status: AiHealthStatus) => void
   setIndexingError: (error: string | null) => void
@@ -65,6 +72,9 @@ export interface EditorState {
   rejectWorktreeChange: (fileId: string) => void
   applyWorktreeChange: (fileId: string) => void
   clearWorktree: () => void
+  loadProjectFromDirectory: (handle: FileSystemDirectoryHandle) => Promise<void>
+  saveFileToDisk: (fileId: string) => Promise<boolean>
+  hasFileHandle: (fileId: string) => boolean
   /** Exécute une commande sur l'éditeur actif. Retourne false si aucune vue ou commande non dispo. */
   executeEditorCommand: (cmd: EditorCommand) => boolean
   /** Enregistré par CodeEditor au mount, null au unmount. */
@@ -112,6 +122,7 @@ export const insertFileIntoFolder = (nodes: FileNode[], folderId: string, file: 
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   files: INITIAL_FILES,
+  fileHandles: {} as Record<string, FileSystemFileHandle>,
   activeFileId: 'App.tsx',
   openFiles: ['App.tsx', 'main.tsx'],
   sidebarVisible: true,
@@ -120,6 +131,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   globalSearchOpen: false,
   settingsOpen: false,
   missionControlOpen: false,
+  terminalPanelOpen: false,
+  terminalPanelHeight: 200,
   aiMode: 'cloud',
   aiHealth: 'loading',
   indexingError: null,
@@ -172,6 +185,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setGlobalSearchOpen: (open) => set({ globalSearchOpen: open }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setMissionControlOpen: (open) => set({ missionControlOpen: open }),
+  setTerminalPanelOpen: (open) => set({ terminalPanelOpen: open }),
+  setTerminalPanelHeight: (height) => set({ terminalPanelHeight: height }),
+  toggleTerminalPanel: () => set((s) => ({ terminalPanelOpen: !s.terminalPanelOpen })),
   setAiMode: (mode) => set({ aiMode: mode }),
   setAiHealth: (status) => set({ aiHealth: status }),
   setIndexingError: (error) => set({ indexingError: error }),
@@ -236,6 +252,48 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
   clearWorktree: () => set({ worktreeChanges: {} }),
+
+  loadProjectFromDirectory: async (handle) => {
+    try {
+      const { files: newFiles, fileHandles: handles } = await readDirectoryRecursive(handle)
+      const firstFileId = (() => {
+        const flat: FileNode[] = []
+        const visit = (n: FileNode) => {
+          if (n.type === 'file') flat.push(n)
+          if (n.children) n.children.forEach(visit)
+        }
+        newFiles.forEach((root) => visit(root))
+        return flat[0]?.id ?? null
+      })()
+      set({
+        files: newFiles,
+        fileHandles: handles,
+        openFiles: firstFileId ? [firstFileId] : [],
+        activeFileId: firstFileId,
+        worktreeChanges: {},
+        syntaxTrees: {},
+        symbolsByFile: {},
+      })
+    } catch (err) {
+      console.error('loadProjectFromDirectory failed', err)
+      set({ indexingError: err instanceof Error ? err.message : 'Failed to load project' })
+    }
+  },
+
+  saveFileToDisk: async (fileId) => {
+    const handle = get().fileHandles[fileId]
+    if (!handle) return false
+    try {
+      const content = get().getFileContent(fileId)
+      await writeFileContent(handle, content)
+      return true
+    } catch (err) {
+      console.error('saveFileToDisk failed', err)
+      return false
+    }
+  },
+
+  hasFileHandle: (fileId) => !!get().fileHandles[fileId],
 
   editorCommandRunner: null as ((cmd: EditorCommand) => boolean) | null,
   setEditorCommandRunner: (runner) => set({ editorCommandRunner: runner }),

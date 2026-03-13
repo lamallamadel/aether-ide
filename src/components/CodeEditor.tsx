@@ -11,7 +11,6 @@ import { highlightSelectionMatches, openSearchPanel, search, searchKeymap } from
 import { keymap } from '@codemirror/view'
 import { Compartment, EditorState, Facet } from '@codemirror/state'
 import { EditorView, drawSelection, highlightActiveLine, highlightSpecialChars, lineNumbers } from '@codemirror/view'
-import { search, searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search'
 import { showMinimap } from '@replit/codemirror-minimap'
 import type { EditorCommand } from '../state/editorStore'
 import { useEditorStore } from '../state/editorStore'
