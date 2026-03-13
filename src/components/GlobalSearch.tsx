@@ -3,6 +3,7 @@ import { ThemedSelect } from './ThemedSelect'
 import { workerBridge } from '../services/workers/WorkerBridge'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FileNode } from '../domain/fileNode'
+import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
 import { graphragQuery } from '../services/graphrag/graphrag'
 
@@ -60,7 +61,17 @@ const HighlightMatch = ({ text, query, matchCase, matchWholeWord }: { text: stri
 }
 
 export function GlobalSearch() {
-  const { globalSearchOpen, setGlobalSearchOpen, files, openFiles, openFile, perf, aiHealth } = useEditorStore()
+  const { globalSearchOpen, setGlobalSearchOpen, files, openFiles, openFile, perf, aiHealth } = useEditorStore(
+    useShallow((s) => ({
+      globalSearchOpen: s.globalSearchOpen,
+      setGlobalSearchOpen: s.setGlobalSearchOpen,
+      files: s.files,
+      openFiles: s.openFiles,
+      openFile: s.openFile,
+      perf: s.perf,
+      aiHealth: s.aiHealth,
+    }))
+  )
   const [mode, setMode] = useState<SearchMode>('content')
   const [scope, setScope] = useState<SearchScope>('all')
   const [query, setQuery] = useState('')

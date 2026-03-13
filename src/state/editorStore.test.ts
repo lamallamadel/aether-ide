@@ -7,24 +7,25 @@ beforeEach(() => {
     files: INITIAL_FILES,
     fileHandles: {},
     activeFileId: 'App.tsx',
-      openFiles: ['App.tsx', 'main.tsx'],
-      sidebarVisible: true,
-      aiPanelVisible: true,
-      commandPaletteOpen: false,
-      globalSearchOpen: false,
-      settingsOpen: false,
-      missionControlOpen: false,
-      aiMode: 'cloud',
-      perf: { longTaskCount: 0, longTaskMaxMs: 0, slowFrameCount: 0, slowFrameMaxMs: 0 },
-      worktreeChanges: {},
-      editorFontSizePx: 14,
-      editorWordWrap: false,
-      editorMinimap: true,
-      _untitledCounter: 1,
-      syntaxTrees: {},
-      symbolsByFile: {},
-    }
-  )
+    openFiles: ['App.tsx', 'main.tsx'],
+    sidebarVisible: true,
+    aiPanelVisible: true,
+    commandPaletteOpen: false,
+    globalSearchOpen: false,
+    settingsOpen: false,
+    missionControlOpen: false,
+    terminalPanelOpen: false,
+    terminalPanelHeight: 200,
+    aiMode: 'cloud',
+    perf: { longTaskCount: 0, longTaskMaxMs: 0, slowFrameCount: 0, slowFrameMaxMs: 0 },
+    worktreeChanges: {},
+    editorFontSizePx: 14,
+    editorWordWrap: false,
+    editorMinimap: true,
+    _untitledCounter: 1,
+    syntaxTrees: {},
+    symbolsByFile: {},
+  })
 })
 
 describe('editorStore', () => {
@@ -57,5 +58,31 @@ describe('editorStore', () => {
   it('getFileContent retourne le contenu', () => {
     const { getFileContent } = useEditorStore.getState()
     expect(getFileContent('readme.md')).toContain('# Aether Code')
+  })
+
+  it('toggleTerminalPanel inverse terminalPanelOpen', () => {
+    const { toggleTerminalPanel } = useEditorStore.getState()
+    expect(useEditorStore.getState().terminalPanelOpen).toBe(false)
+    toggleTerminalPanel()
+    expect(useEditorStore.getState().terminalPanelOpen).toBe(true)
+    toggleTerminalPanel()
+    expect(useEditorStore.getState().terminalPanelOpen).toBe(false)
+  })
+
+  it('setTerminalPanelOpen et setTerminalPanelHeight', () => {
+    const { setTerminalPanelOpen, setTerminalPanelHeight } = useEditorStore.getState()
+    setTerminalPanelOpen(true)
+    expect(useEditorStore.getState().terminalPanelOpen).toBe(true)
+    setTerminalPanelHeight(300)
+    expect(useEditorStore.getState().terminalPanelHeight).toBe(300)
+  })
+
+  it('hasFileHandle retourne false sans handle, true avec', () => {
+    const { hasFileHandle, setTerminalPanelOpen } = useEditorStore.getState()
+    expect(hasFileHandle('App.tsx')).toBe(false)
+    useEditorStore.setState({
+      fileHandles: { 'App.tsx': {} as FileSystemFileHandle },
+    })
+    expect(hasFileHandle('App.tsx')).toBe(true)
   })
 })

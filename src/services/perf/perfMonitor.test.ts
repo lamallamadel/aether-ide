@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { startPerfMonitor } from './perfMonitor'
+
+vi.unmock('./perfMonitor')
 
 describe('perfMonitor', () => {
-  it('starts and stops without crashing', () => {
+  it('starts and stops without crashing', async () => {
+    const { startPerfMonitor } = await import('./perfMonitor')
     vi.useFakeTimers()
 
     const raf = window.requestAnimationFrame

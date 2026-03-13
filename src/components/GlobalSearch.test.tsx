@@ -5,6 +5,10 @@ import { INITIAL_FILES } from '../domain/fileNode'
 import { useEditorStore } from '../state/editorStore'
 import App from '../App'
 
+vi.mock('./CodeEditor', () => ({
+  CodeEditor: ({ value }: { value?: string }) => <div data-testid="code-editor">{value ?? ''}</div>,
+}))
+
 vi.mock('../services/workers/WorkerBridge', () => ({
   workerBridge: {
     postRequest: vi.fn((type: string) => {

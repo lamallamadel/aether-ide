@@ -10,6 +10,7 @@ import { SettingsModal } from './components/SettingsModal'
 import { TerminalPanel } from './components/TerminalPanel'
 import { Sidebar } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
+import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from './state/editorStore'
 import { enableZeroEgress } from './services/security/networkGuard'
 import { startPerfMonitor } from './services/perf/perfMonitor'
@@ -19,7 +20,21 @@ import { THEME_COLORS } from './lib/theme'
 
 export default function App() {
   const { files, terminalPanelOpen, setCommandPaletteOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError, toggleTerminalPanel } =
-    useEditorStore()
+    useEditorStore(useShallow((s) => ({
+      files: s.files,
+      terminalPanelOpen: s.terminalPanelOpen,
+      setCommandPaletteOpen: s.setCommandPaletteOpen,
+      toggleSidebar: s.toggleSidebar,
+      toggleAiPanel: s.toggleAiPanel,
+      setSettingsOpen: s.setSettingsOpen,
+      aiMode: s.aiMode,
+      setPerf: s.setPerf,
+      setAiHealth: s.setAiHealth,
+      ideThemeColor: s.ideThemeColor,
+      setMissionControlOpen: s.setMissionControlOpen,
+      setIndexingError: s.setIndexingError,
+      toggleTerminalPanel: s.toggleTerminalPanel,
+    })))
 
   useEffect(() => {
     const onAIClick = (e: any) => {
@@ -46,7 +61,6 @@ export default function App() {
 
     console.log('App: Indexing...', { fileCount: flatFiles.length, files: flatFiles.map((f) => f.fileId) })
 
-    setIndexingError(null)
     workerBridge
       .postRequest('INDEX_BUILD', { files: flatFiles })
       .then((res: unknown) => {

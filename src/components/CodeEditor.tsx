@@ -314,9 +314,10 @@ export function CodeEditor(props: {
         return false
       }
     }
-    useEditorStore.getState().setEditorCommandRunner(runner)
+    const tid = window.setTimeout(() => useEditorStore.getState().setEditorCommandRunner(runner), 0)
 
     return () => {
+      window.clearTimeout(tid)
       useEditorStore.getState().setEditorCommandRunner(null)
       if (debounceRef.current) window.clearTimeout(debounceRef.current)
       view.destroy()

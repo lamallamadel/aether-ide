@@ -1,24 +1,28 @@
 import { render, screen } from '@testing-library/react'
 import { waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { INITIAL_FILES } from '../domain/fileNode'
 import { useEditorStore } from '../state/editorStore'
 import App from '../App'
 
+vi.mock('./CodeEditor', () => ({
+  CodeEditor: ({ value }: { value?: string }) => <div data-testid="code-editor">{value ?? ''}</div>,
+}))
+
 beforeEach(() => {
-  useEditorStore.setState(
-    {
-      files: INITIAL_FILES,
-      activeFileId: 'App.tsx',
-      openFiles: ['App.tsx', 'main.tsx'],
-      sidebarVisible: true,
-      aiPanelVisible: true,
-      commandPaletteOpen: false,
-      globalSearchOpen: false,
-      settingsOpen: false,
-      missionControlOpen: false,
-      aiMode: 'cloud',
+  useEditorStore.setState({
+    files: INITIAL_FILES,
+    activeFileId: 'App.tsx',
+    openFiles: ['App.tsx', 'main.tsx'],
+    sidebarVisible: true,
+    aiPanelVisible: true,
+    commandPaletteOpen: false,
+    globalSearchOpen: false,
+    settingsOpen: false,
+    missionControlOpen: false,
+    terminalPanelOpen: false,
+    aiMode: 'cloud',
       perf: { longTaskCount: 0, longTaskMaxMs: 0, slowFrameCount: 0, slowFrameMaxMs: 0 },
       worktreeChanges: {},
       editorFontSizePx: 14,
@@ -93,6 +97,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Explorer' }).getAttribute('tabindex')).toBe('0')
     expect(screen.getByRole('button', { name: 'Open Command Palette' }).getAttribute('tabindex')).toBe('0')
     expect(screen.getByRole('button', { name: 'Toggle AI Panel' }).getAttribute('tabindex')).toBe('0')
+    expect(screen.getByRole('button', { name: 'Toggle Terminal' }).getAttribute('tabindex')).toBe('0')
     expect(screen.getByRole('button', { name: 'Open Settings' }).getAttribute('tabindex')).toBe('0')
   })
 
