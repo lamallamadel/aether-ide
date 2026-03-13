@@ -87,6 +87,7 @@ describe('graphragQuery', () => {
 describe('graphragQuery with indexedDB', () => {
   beforeEach(() => {
     vi.stubGlobal('indexedDB', {})
+    vi.mocked(getAllChunks).mockResolvedValue(mockChunks)
   })
 
   it('returns keyword results when indexedDB and chunks exist', async () => {
