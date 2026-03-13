@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { FileNode } from '../domain/fileNode'
 import { INITIAL_FILES } from '../domain/fileNode'
 import {
   findNode as findNodeUtil,
@@ -7,6 +8,36 @@ import {
   insertFileIntoFolder,
   useEditorStore,
 } from './editorStore'
+
+vi.mock('../services/fileSystem/fileSystemAccess', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/fileSystem/fileSystemAccess')>()
+  const mockFiles: FileNode[] = [
+    {
+      id: 'root',
+      name: 'test-project',
+      type: 'folder',
+      isOpen: true,
+      children: [
+        {
+          id: 'src/newfile.ts',
+          name: 'newfile.ts',
+          type: 'file',
+          language: 'typescript',
+          parentId: 'src',
+          content: 'export const x = 1',
+        },
+      ],
+    },
+  ]
+  return {
+    ...actual,
+    readDirectoryRecursive: vi.fn().mockResolvedValue({
+      files: mockFiles,
+      fileHandles: { 'src/newfile.ts': {} as FileSystemFileHandle },
+    }),
+    writeFileContent: vi.fn().mockResolvedValue(undefined),
+  }
+})
 
 beforeEach(() => {
   useEditorStore.setState({
@@ -171,5 +202,108 @@ describe('editorStore', () => {
     const state = useEditorStore.getState()
     expect(state.syntaxTrees['App.tsx']).toEqual(tree)
     expect(state.symbolsByFile['App.tsx']).toEqual(symbols)
+  })
+
+  it('setActiveFile change le fichier actif', () => {
+    const { setActiveFile } = useEditorStore.getState()
+    setActiveFile('readme.md')
+    expect(useEditorStore.getState().activeFileId).toBe('readme.md')
+  })
+
+  it('setFileContent met à jour le contenu d\'un fichier', () => {
+    const { setFileContent, getFileContent } = useEditorStore.getState()
+    setFileContent('App.tsx', 'const x = 42')
+    expect(getFileContent('App.tsx')).toBe('const x = 42')
+  })
+
+  it('setCommandPaletteOpen, setIndexingError, setStorageQuotaExceeded, setPerf', () => {
+    const { setCommandPaletteOpen, setIndexingError, setStorageQuotaExceeded, setPerf } =
+      useEditorStore.getState()
+    setCommandPaletteOpen(true)
+    expect(useEditorStore.getState().commandPaletteOpen).toBe(true)
+    setIndexingError('Index failed')
+    expect(useEditorStore.getState().indexingError).toBe('Index failed')
+    setStorageQuotaExceeded(true)
+    expect(useEditorStore.getState().storageQuotaExceeded).toBe(true)
+    setPerf({ longTaskCount: 5, longTaskMaxMs: 100, slowFrameCount: 2, slowFrameMaxMs: 50 })
+    expect(useEditorStore.getState().perf.longTaskCount).toBe(5)
+  })
+
+  it('setEditorTheme, setEditorFontFamily, setIdeThemeColor', () => {
+    const { setEditorTheme, setEditorFontFamily, setIdeThemeColor } = useEditorStore.getState()
+    setEditorTheme('Nord')
+    expect(useEditorStore.getState().editorTheme).toBe('Nord')
+    setEditorFontFamily('Fira Code')
+    expect(useEditorStore.getState().editorFontFamily).toBe('Fira Code')
+    setIdeThemeColor('cyan')
+    expect(useEditorStore.getState().ideThemeColor).toBe('cyan')
+  })
+
+  it('applyWorktreeChange sans modification existante ne fait rien', () => {
+    const { applyWorktreeChange, getFileContent } = useEditorStore.getState()
+    const before = getFileContent('App.tsx')
+    applyWorktreeChange('App.tsx')
+    expect(getFileContent('App.tsx')).toBe(before)
+  })
+
+  it('closeFile avec seul onglet ouvert met activeFileId à null', () => {
+    useEditorStore.setState({ openFiles: ['App.tsx'], activeFileId: 'App.tsx' })
+    const { closeFile } = useEditorStore.getState()
+    closeFile('App.tsx')
+    const state = useEditorStore.getState()
+    expect(state.openFiles).toEqual([])
+    expect(state.activeFileId).toBeNull()
+  })
+
+  it('executeEditorCommand retourne false quand aucun runner enregistré', () => {
+    const { executeEditorCommand } = useEditorStore.getState()
+    expect(executeEditorCommand('undo')).toBe(false)
+    expect(executeEditorCommand('copy')).toBe(false)
+  })
+
+  it('executeEditorCommand délègue au runner quand enregistré', () => {
+    const { setEditorCommandRunner, executeEditorCommand } = useEditorStore.getState()
+    const mockRunner = vi.fn().mockReturnValue(true)
+    setEditorCommandRunner(mockRunner)
+    expect(executeEditorCommand('undo')).toBe(true)
+    expect(mockRunner).toHaveBeenCalledWith('undo')
+    setEditorCommandRunner(null)
+    expect(executeEditorCommand('redo')).toBe(false)
+  })
+
+  it('loadProjectFromDirectory charge les fichiers et ouvre le premier', async () => {
+    const { loadProjectFromDirectory } = useEditorStore.getState()
+    const mockHandle = { name: 'test-project' } as FileSystemDirectoryHandle
+    await loadProjectFromDirectory(mockHandle)
+    const state = useEditorStore.getState()
+    expect(state.files[0].name).toBe('test-project')
+    expect(state.openFiles).toContain('src/newfile.ts')
+    expect(state.activeFileId).toBe('src/newfile.ts')
+    expect(state.worktreeChanges).toEqual({})
+  })
+
+  it('loadProjectFromDirectory met indexingError en cas d\'erreur', async () => {
+    const { readDirectoryRecursive } = await import('../services/fileSystem/fileSystemAccess')
+    ;(readDirectoryRecursive as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Access denied'))
+    const { loadProjectFromDirectory } = useEditorStore.getState()
+    const mockHandle = {} as FileSystemDirectoryHandle
+    await loadProjectFromDirectory(mockHandle)
+    expect(useEditorStore.getState().indexingError).toBe('Access denied')
+  })
+
+  it('saveFileToDisk retourne false sans handle', async () => {
+    const { saveFileToDisk } = useEditorStore.getState()
+    expect(await saveFileToDisk('App.tsx')).toBe(false)
+  })
+
+  it('saveFileToDisk écrit le contenu et retourne true avec handle', async () => {
+    useEditorStore.setState({
+      fileHandles: { 'App.tsx': {} as FileSystemFileHandle },
+    })
+    const { saveFileToDisk } = useEditorStore.getState()
+    const ok = await saveFileToDisk('App.tsx')
+    expect(ok).toBe(true)
+    const { writeFileContent } = await import('../services/fileSystem/fileSystemAccess')
+    expect(writeFileContent).toHaveBeenCalled()
   })
 })

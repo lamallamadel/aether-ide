@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { db } from './AetherDB'
 import { VectorStore, type EmbeddingProvider } from './VectorStore'
 
 // AetherDB is mocked in src/test/setup.ts (no IndexedDB in Node)
@@ -8,6 +9,22 @@ const createMockEmbedding = (seed: number) => {
   for (let i = 0; i < 4; i++) arr[i] = Math.sin(seed + i)
   return arr
 }
+
+/** Same logic as VectorStore.simpleHash for cache test */
+function simpleHash(str: string): string {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = (hash << 5) - hash + char
+    hash = hash & hash
+  }
+  return hash.toString(36)
+}
+
+beforeEach(() => {
+  vi.mocked(db.getVectorsForFile).mockResolvedValue([])
+  vi.mocked(db.getAllVectors).mockResolvedValue([])
+})
 
 describe('VectorStore — network cutoff resilience', () => {
   it('stores chunks without embedding when provider fails', async () => {
@@ -107,5 +124,85 @@ describe('VectorStore — network cutoff resilience', () => {
       { content: 'const y = 2', startLine: 2, endLine: 2 },
     ])
     expect(store.health).toBe('ready')
+  })
+})
+
+describe('VectorStore — cache and search', () => {
+  beforeEach(() => {
+    vi.mocked(db.getVectorsForFile).mockResolvedValue([])
+    vi.mocked(db.getAllVectors).mockResolvedValue([])
+    vi.mocked(db.upsertVectors).mockResolvedValue(undefined)
+  })
+
+  it('reuses cached vectors by hash and skips embed for unchanged content', async () => {
+    const content = 'const x = 1'
+    const hash = simpleHash(content)
+    const cachedEmbedding = createMockEmbedding(99)
+    const cachedVectors = [
+      {
+        id: 'test.ts:1-1',
+        fileId: 'test.ts',
+        content,
+        startLine: 1,
+        endLine: 1,
+        embedding: cachedEmbedding,
+        hash,
+      },
+    ]
+    vi.mocked(db.getVectorsForFile).mockResolvedValue(cachedVectors)
+
+    const embed = vi.fn().mockResolvedValue(createMockEmbedding(1))
+    const store = new VectorStore({ embed })
+
+    await store.persistVectors('test.ts', [{ content, startLine: 1, endLine: 1 }])
+
+    expect(embed).not.toHaveBeenCalled()
+    expect(db.upsertVectors).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fileId: 'test.ts',
+          content,
+          startLine: 1,
+          endLine: 1,
+          embedding: cachedEmbedding,
+          hash,
+        }),
+      ])
+    )
+  })
+
+  it('search returns scored results sorted by cosine similarity', async () => {
+    const queryEmb = createMockEmbedding(1)
+    const vecA = createMockEmbedding(2) // less similar to query
+    const vecB = createMockEmbedding(1) // identical to query → highest score
+    vi.mocked(db.getAllVectors).mockResolvedValue([
+      {
+        id: 'a.ts:1-2',
+        fileId: 'a.ts',
+        content: 'code A',
+        startLine: 1,
+        endLine: 2,
+        embedding: vecA,
+        hash: 'x',
+      },
+      {
+        id: 'b.ts:1-2',
+        fileId: 'b.ts',
+        content: 'code B',
+        startLine: 1,
+        endLine: 2,
+        embedding: vecB,
+        hash: 'y',
+      },
+    ])
+
+    const embed = vi.fn().mockResolvedValue(queryEmb)
+    const store = new VectorStore({ embed })
+
+    const results = await store.search('query', 5)
+
+    expect(embed).toHaveBeenCalledWith('query')
+    expect(results).toHaveLength(2)
+    expect(results[0].score).toBeGreaterThanOrEqual(results[1].score)
   })
 })
