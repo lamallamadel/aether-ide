@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { INITIAL_FILES } from '../domain/fileNode'
 import { useEditorStore } from '../state/editorStore'
 import { workerBridge } from '../services/workers/WorkerBridge'
+import { parseFileContent } from '../services/syntax/syntaxClient'
 import { useFileSync } from './useFileSync'
 
 beforeEach(() => {
@@ -39,10 +40,7 @@ describe('useFileSync', () => {
   it('calls parseFileContent for .ts files and updates syntax when tree is returned', async () => {
     const mockTree = { root: { type: 'PROGRAM', children: [] } }
     const mockSymbols = [{ kind: 'variable', name: 'x', startIndex: 0, endIndex: 10 }]
-    vi.mocked(workerBridge.postRequest).mockImplementation((type: string) => {
-      if (type === 'PARSE') return Promise.resolve({ tree: mockTree, symbols: mockSymbols })
-      return Promise.reject(new Error(`Unknown: ${type}`))
-    })
+    vi.mocked(parseFileContent).mockResolvedValue({ tree: mockTree, symbols: mockSymbols })
 
     const { result } = renderHook(() => useFileSync())
 

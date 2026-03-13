@@ -28,7 +28,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    pool: 'vmThreads',
+    pool: 'forks',
     maxWorkers: 1,
     fileParallelism: false,
     coverage: {

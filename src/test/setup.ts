@@ -32,6 +32,13 @@ vi.mock('../services/perf/perfMonitor', () => ({
   startPerfMonitor: vi.fn(() => () => {}),
 }))
 
+// Mock syntaxClient for tests (WorkerBridge PARSE); useFileSync.test overrides parseFileContent per test
+vi.mock('../services/syntax/syntaxClient', () => ({
+  parseFileContent: vi.fn().mockResolvedValue({ tree: null, symbols: [] }),
+  languageIdForFile: (path: string) =>
+    path.endsWith('.tsx') ? 'tsx' : path.endsWith('.ts') ? 'typescript' : path.match(/\.(js|jsx)$/i) ? 'javascript' : null,
+}))
+
 // Mock graphragDb for tests (no IndexedDB in Node/jsdom)
 vi.mock('../services/graphrag/graphragDb', () => ({
   getAllChunks: vi.fn().mockResolvedValue([]),

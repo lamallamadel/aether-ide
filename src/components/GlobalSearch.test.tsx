@@ -10,8 +10,14 @@ vi.mock('./CodeEditor', () => ({
   CodeEditor: ({ value }: { value?: string }) => <div data-testid="code-editor">{value ?? ''}</div>,
 }))
 
+const defaultWorkerBridgeImpl = (type: string) => {
+  if (type === 'INDEX_BUILD') return Promise.resolve({ docCount: 0 })
+  if (type === 'INDEX_SEARCH') return Promise.resolve({ results: [] })
+  if (type === 'PARSE') return Promise.resolve({ tree: null, symbols: [] })
+  return Promise.reject(new Error(`Unknown type: ${type}`))
+}
+
 beforeEach(() => {
-  // Override WorkerBridge for this test: return search results (setup mock returns empty)
   vi.mocked(workerBridge.postRequest).mockImplementation((type: string) => {
     if (type === 'INDEX_BUILD') return Promise.resolve({ docCount: 5 })
     if (type === 'INDEX_SEARCH') {
@@ -21,7 +27,7 @@ beforeEach(() => {
         ],
       })
     }
-    return Promise.reject(new Error(`Unknown type: ${type}`))
+    return defaultWorkerBridgeImpl(type)
   })
   useEditorStore.setState({
     files: INITIAL_FILES,
@@ -49,6 +55,18 @@ describe('GlobalSearch', () => {
   it(
     'ouvre Global Search depuis la palette et retourne des résultats',
     async () => {
+    // Réappliquer le mock au début du test (évite pollution par d'autres suites)
+    vi.mocked(workerBridge.postRequest).mockImplementation((type: string) => {
+      if (type === 'INDEX_BUILD') return Promise.resolve({ docCount: 5 })
+      if (type === 'INDEX_SEARCH') {
+        return Promise.resolve({
+          results: [
+            { fileId: 'App.tsx', startLine: 5, endLine: 7, score: 0.95, snippet: 'Welcome to Aether Code' },
+          ],
+        })
+      }
+      return Promise.reject(new Error(`Unknown type: ${type}`))
+    })
     const user = userEvent.setup()
     render(<App />)
 
