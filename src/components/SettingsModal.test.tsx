@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEditorStore } from '../state/editorStore'
 import { SettingsModal } from './SettingsModal'
 
@@ -117,5 +117,60 @@ describe('SettingsModal', () => {
     const cloudBtn = screen.getByRole('button', { name: /Cloud/ })
     await user.click(cloudBtn)
     expect(useEditorStore.getState().aiMode).toBe('cloud')
+  })
+
+  it('changes editor theme through themed select', async () => {
+    const user = userEvent.setup()
+    useEditorStore.setState({ settingsOpen: true, editorTheme: 'Aether' })
+    render(<SettingsModal />)
+
+    await user.click(screen.getByRole('button', { name: 'Select editor theme' }))
+    await user.click(screen.getByRole('option', { name: 'Nord' }))
+
+    expect(useEditorStore.getState().editorTheme).toBe('Nord')
+  })
+
+  it('focus trap handles Tab on last element', () => {
+    useEditorStore.setState({ settingsOpen: true })
+    render(<SettingsModal />)
+
+    const dialog = screen.getByRole('dialog', { name: 'Settings' })
+    const focusable = dialog.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    expect(first).toBeTruthy()
+    expect(last).toBeTruthy()
+
+    const focusSpy = vi.spyOn(first, 'focus')
+    last.focus()
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    window.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(focusSpy).toHaveBeenCalled()
+  })
+
+  it('focus trap handles Shift+Tab on first element', () => {
+    useEditorStore.setState({ settingsOpen: true })
+    render(<SettingsModal />)
+
+    const dialog = screen.getByRole('dialog', { name: 'Settings' })
+    const focusable = dialog.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    expect(first).toBeTruthy()
+    expect(last).toBeTruthy()
+
+    const focusSpy = vi.spyOn(last, 'focus')
+    first.focus()
+    const event = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true })
+    window.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(focusSpy).toHaveBeenCalled()
   })
 })

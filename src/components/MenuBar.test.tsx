@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { INITIAL_FILES } from '../domain/fileNode'
 import { useEditorStore } from '../state/editorStore'
 import { MenuBar } from './MenuBar'
+import * as fsAccess from '../services/fileSystem/fileSystemAccess'
 
 vi.mock('../services/fileSystem/fileSystemAccess', () => ({
   isSupported: vi.fn(() => false),
@@ -15,6 +16,7 @@ vi.mock('./CodeEditor', () => ({
 }))
 
 beforeEach(() => {
+  vi.restoreAllMocks()
   useEditorStore.setState({
     files: INITIAL_FILES,
     activeFileId: 'App.tsx',
@@ -181,5 +183,66 @@ describe('MenuBar', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Go to Symbol...' }))
 
     expect(useEditorStore.getState().globalSearchOpen).toBe(true)
+  })
+
+  it('File > Save downloads active file when no file handle', async () => {
+    const user = userEvent.setup()
+    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:menu-test')
+    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    render(<MenuBar />)
+
+    await user.click(screen.getByRole('button', { name: 'File' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Save' }))
+
+    expect(createObjectURLSpy).toHaveBeenCalled()
+    expect(clickSpy).toHaveBeenCalled()
+    expect(revokeObjectURLSpy).toHaveBeenCalled()
+    expect(screen.getByText(/Downloaded App\.tsx/)).toBeInTheDocument()
+  })
+
+  it('File > Save uses store file handle path when available', async () => {
+    const user = userEvent.setup()
+    const saveSpy = vi.fn().mockResolvedValue(true)
+    useEditorStore.setState({
+      hasFileHandle: () => true,
+      saveFileToDisk: saveSpy,
+    })
+    render(<MenuBar />)
+
+    await user.click(screen.getByRole('button', { name: 'File' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Save' }))
+
+    expect(saveSpy).toHaveBeenCalledWith('App.tsx')
+    expect(screen.getByText(/Saved App\.tsx/)).toBeInTheDocument()
+  })
+
+  it('File > Save As downloads active file', async () => {
+    const user = userEvent.setup()
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:menu-test-2')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    render(<MenuBar />)
+
+    await user.click(screen.getByRole('button', { name: 'File' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Save As...' }))
+
+    expect(clickSpy).toHaveBeenCalled()
+    expect(screen.getByText(/Downloaded App\.tsx/)).toBeInTheDocument()
+  })
+
+  it('File > Open Folder loads project when supported and directory picked', async () => {
+    const user = userEvent.setup()
+    const loadSpy = vi.fn().mockResolvedValue(undefined)
+    useEditorStore.setState({ loadProjectFromDirectory: loadSpy })
+    vi.mocked(fsAccess.isSupported).mockReturnValue(true)
+    vi.mocked(fsAccess.pickDirectory).mockResolvedValue({ name: 'mockdir' } as FileSystemDirectoryHandle)
+    render(<MenuBar />)
+
+    await user.click(screen.getByRole('button', { name: 'File' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Open Folder...' }))
+
+    expect(loadSpy).toHaveBeenCalled()
+    expect(screen.getByText('Projet chargé')).toBeInTheDocument()
   })
 })

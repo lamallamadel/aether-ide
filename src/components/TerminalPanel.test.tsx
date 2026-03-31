@@ -1,8 +1,9 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { INITIAL_FILES } from '../domain/fileNode'
 import { useEditorStore } from '../state/editorStore'
+import { xtermMocks } from '../test/setup'
 import { TerminalPanel } from './TerminalPanel'
 
 beforeEach(() => {
@@ -11,6 +12,7 @@ beforeEach(() => {
     terminalPanelOpen: false,
     terminalPanelHeight: 200,
   })
+  vi.clearAllMocks()
 })
 
 describe('TerminalPanel', () => {
@@ -40,5 +42,38 @@ describe('TerminalPanel', () => {
     useEditorStore.setState({ terminalPanelOpen: true })
     const { unmount } = render(<TerminalPanel />)
     expect(() => unmount()).not.toThrow()
+  })
+
+  it('runs help command when user types help and enter', () => {
+    useEditorStore.setState({ terminalPanelOpen: true })
+    render(<TerminalPanel />)
+
+    const onDataCallback = xtermMocks.onData.mock.calls[0]?.[0] as ((data: string) => void) | undefined
+    expect(onDataCallback).toBeDefined()
+    if (!onDataCallback) return
+
+    onDataCallback('h')
+    onDataCallback('e')
+    onDataCallback('l')
+    onDataCallback('p')
+    onDataCallback('\r')
+
+    expect(xtermMocks.writeln).toHaveBeenCalledWith(
+      expect.stringContaining('Available commands: clear, echo, ls, pwd, help')
+    )
+  })
+
+  it('runs echo command', () => {
+    useEditorStore.setState({ terminalPanelOpen: true })
+    render(<TerminalPanel />)
+
+    const onDataCallback = xtermMocks.onData.mock.calls[0]?.[0] as ((data: string) => void) | undefined
+    expect(onDataCallback).toBeDefined()
+    if (!onDataCallback) return
+
+    for (const c of 'echo hello') onDataCallback(c)
+    onDataCallback('\r')
+
+    expect(xtermMocks.writeln).toHaveBeenCalledWith('hello')
   })
 })
