@@ -24,6 +24,7 @@ beforeEach(() => {
     terminalPanelOpen: false,
     commandPaletteOpen: false,
     globalSearchOpen: false,
+    goToSymbolOpen: false,
     settingsOpen: false,
     missionControlOpen: false,
     sidebarVisible: true,
@@ -175,14 +176,14 @@ describe('MenuBar', () => {
     expect(useEditorStore.getState().commandPaletteOpen).toBe(true)
   })
 
-  it('Go > Go to Symbol opens global search', async () => {
+  it('Go > Go to Symbol opens symbol palette', async () => {
     const user = userEvent.setup()
     render(<MenuBar />)
 
     await user.click(screen.getByRole('button', { name: 'Go' }))
     await user.click(screen.getByRole('menuitem', { name: 'Go to Symbol...' }))
 
-    expect(useEditorStore.getState().globalSearchOpen).toBe(true)
+    expect(useEditorStore.getState().goToSymbolOpen).toBe(true)
   })
 
   it('File > Save downloads active file when no file handle', async () => {

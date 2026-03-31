@@ -19,6 +19,7 @@ export interface EditorState {
   aiPanelVisible: boolean
   commandPaletteOpen: boolean
   globalSearchOpen: boolean
+  goToSymbolOpen: boolean
   settingsOpen: boolean
   missionControlOpen: boolean
   terminalPanelOpen: boolean
@@ -49,6 +50,7 @@ export interface EditorState {
   toggleAiPanel: () => void
   setCommandPaletteOpen: (open: boolean) => void
   setGlobalSearchOpen: (open: boolean) => void
+  setGoToSymbolOpen: (open: boolean) => void
   setSettingsOpen: (open: boolean) => void
   setMissionControlOpen: (open: boolean) => void
   setTerminalPanelOpen: (open: boolean) => void
@@ -129,6 +131,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   aiPanelVisible: true,
   commandPaletteOpen: false,
   globalSearchOpen: false,
+  goToSymbolOpen: false,
   settingsOpen: false,
   missionControlOpen: false,
   terminalPanelOpen: false,
@@ -183,6 +186,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   toggleAiPanel: () => set((state) => ({ aiPanelVisible: !state.aiPanelVisible })),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
   setGlobalSearchOpen: (open) => set({ globalSearchOpen: open }),
+  setGoToSymbolOpen: (open) => set({ goToSymbolOpen: open }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setMissionControlOpen: (open) => set({ missionControlOpen: open }),
   setTerminalPanelOpen: (open) => set({ terminalPanelOpen: open }),

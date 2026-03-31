@@ -28,6 +28,7 @@ export function MenuBar() {
     getFileContent,
     setCommandPaletteOpen,
     setGlobalSearchOpen,
+    setGoToSymbolOpen,
     setSettingsOpen,
     commandPaletteOpen,
     globalSearchOpen,
@@ -54,6 +55,7 @@ export function MenuBar() {
       getFileContent: s.getFileContent,
       setCommandPaletteOpen: s.setCommandPaletteOpen,
       setGlobalSearchOpen: s.setGlobalSearchOpen,
+      setGoToSymbolOpen: s.setGoToSymbolOpen,
       setSettingsOpen: s.setSettingsOpen,
       commandPaletteOpen: s.commandPaletteOpen,
       globalSearchOpen: s.globalSearchOpen,
@@ -193,7 +195,7 @@ export function MenuBar() {
       ],
       Go: [
         { kind: 'action', id: 'go-file', label: 'Go to File...', action: () => setCommandPaletteOpen(true) },
-        { kind: 'action', id: 'go-symbol', label: 'Go to Symbol...', action: () => setGlobalSearchOpen(true) },
+        { kind: 'action', id: 'go-symbol', label: 'Go to Symbol...', action: () => setGoToSymbolOpen(true) },
       ],
       Run: [
         { kind: 'action', id: 'run-placeholder', label: '(Debug/Run — coming soon)', action: () => announce('Debugging and Run not yet implemented') },
@@ -216,6 +218,7 @@ export function MenuBar() {
       saveFileToDisk,
       setCommandPaletteOpen,
       setGlobalSearchOpen,
+      setGoToSymbolOpen,
       setSettingsOpen,
       toggleTerminalPanel,
       toggleAiPanel,

@@ -4,6 +4,7 @@ import { AIChatPanel } from './components/AIChatPanel'
 import { CommandPalette } from './components/CommandPalette'
 import { EditorArea } from './components/EditorArea'
 import { GlobalSearch } from './components/GlobalSearch'
+import { GoToSymbol } from './components/GoToSymbol'
 import { MenuBar } from './components/MenuBar'
 import { MissionControl } from './components/MissionControl'
 import { SettingsModal } from './components/SettingsModal'
@@ -19,11 +20,12 @@ import { vectorStore } from './services/db/VectorStore'
 import { THEME_COLORS } from './lib/theme'
 
 export default function App() {
-  const { files, terminalPanelOpen, setCommandPaletteOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError, toggleTerminalPanel } =
+  const { files, terminalPanelOpen, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError, toggleTerminalPanel } =
     useEditorStore(useShallow((s) => ({
       files: s.files,
       terminalPanelOpen: s.terminalPanelOpen,
       setCommandPaletteOpen: s.setCommandPaletteOpen,
+      setGoToSymbolOpen: s.setGoToSymbolOpen,
       toggleSidebar: s.toggleSidebar,
       toggleAiPanel: s.toggleAiPanel,
       setSettingsOpen: s.setSettingsOpen,
@@ -100,6 +102,10 @@ export default function App() {
         e.preventDefault()
         setSettingsOpen(true)
       }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault()
+        setGoToSymbolOpen(true)
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === '`') {
         e.preventDefault()
         toggleTerminalPanel()
@@ -108,7 +114,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [setCommandPaletteOpen, setSettingsOpen, toggleAiPanel, toggleSidebar, toggleTerminalPanel])
+  }, [setCommandPaletteOpen, setGoToSymbolOpen, setSettingsOpen, toggleAiPanel, toggleSidebar, toggleTerminalPanel])
 
   useEffect(() => {
     if (aiMode !== 'local') return
@@ -167,6 +173,7 @@ export default function App() {
       <StatusBar />
       <CommandPalette />
       <GlobalSearch />
+      <GoToSymbol />
       <SettingsModal />
       <MissionControl />
     </div>

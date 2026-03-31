@@ -380,5 +380,23 @@ export function CodeEditor(props: {
     view.dispatch({ effects: aiGutterDataCompartment.reconfigure(aiGutterDataFacet.of(gutterData)) })
   }, [gutterData])
 
+  useEffect(() => {
+    const onGotoSymbol = (event: Event) => {
+      const custom = event as CustomEvent<{ fileId: string; startIndex: number }>
+      const detail = custom.detail
+      if (!detail || detail.fileId !== fileId) return
+      const view = viewRef.current
+      if (!view) return
+      const pos = Math.max(0, Math.min(detail.startIndex, view.state.doc.length))
+      view.dispatch({
+        selection: { anchor: pos },
+        scrollIntoView: true,
+      })
+      view.focus()
+    }
+    window.addEventListener('aether-goto-symbol', onGotoSymbol as EventListener)
+    return () => window.removeEventListener('aether-goto-symbol', onGotoSymbol as EventListener)
+  }, [fileId])
+
   return <div ref={hostRef} data-testid="code-editor" className="h-full w-full overflow-hidden" />
 }
