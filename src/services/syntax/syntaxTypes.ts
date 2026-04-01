@@ -22,4 +22,3 @@ export type ExtractedSymbol = {
   startIndex: number
   endIndex: number
 }
-

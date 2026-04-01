@@ -17,6 +17,10 @@ This index defines which documents are the source of truth and how to use the re
 | `docs/architecture/ADR-003-transformers-local.md` | Canonique | Accepted architecture decision for local embeddings |
 | `docs/accessibility/keyboard-navigation.md` | Support | Keyboard/ARIA behavior details |
 | `docs/accessibility/a11y-test-report.md` | Support | Accessibility validation report |
+| `docs/release/traceability-matrix.md` | Support | Feature-to-validation mapping for release readiness |
+| `docs/release/functional-checklist.md` | Support | Targeted functional review checklist and results |
+| `docs/release/syntax-types-decision.md` | Support | Explicit decision log for syntax types release blocker |
+| `docs/release/release-notes-draft-v0.1.0.md` | Support | Release notes draft and gate status |
 | `GEMINI.md` | Support | Quick high-level project overview |
 | `PROPOSAL_STABILIZATION.md` | Support | Stabilization proposal for test hardening |
 | `TEAM_ROLE_ANALYSIS.md` | Support | Cross-role analysis and risk framing |
