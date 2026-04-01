@@ -1,6 +1,6 @@
 ## Lecture des spécifications
-- Transformer [Maquette.md](file:///c:/Users/lamal/work/ide/Maquette.md) en backlog “UI + state” : explorateur (arbre), onglets, éditeur read-only, panneau IA (streaming mock), palette de commandes (recherche fichiers + actions), status bar, raccourcis clavier.
-- Interpréter [Création d'un IDE inspiré Sublime_Cursor.md](file:///c:/Users/lamal/work/ide/Création%20d'un%20IDE%20inspiré%20Sublime_Cursor.md) comme exigences d’architecture (non-bloquant, tâches async, API agent-friendly, indexation/RAG, worktree fantôme + mission control) et définir une implémentation “prototype” web cohérente.
+- Transformer [Maquette.md](../../docs/archive/Maquette.md) en backlog “UI + state” : explorateur (arbre), onglets, éditeur read-only, panneau IA (streaming mock), palette de commandes (recherche fichiers + actions), status bar, raccourcis clavier.
+- Interpréter [Création d'un IDE inspiré Sublime_Cursor.md](../../Création%20d'un%20IDE%20inspir%C3%A9%20Sublime_Cursor.md) comme exigences d’architecture (non-bloquant, tâches async, API agent-friendly, indexation/RAG, worktree fantôme + mission control) et définir une implémentation “prototype” web cohérente.
 
 ## Stack & structure de projet
 - Créer une app web React + TypeScript (Vite) avec Tailwind CSS pour reproduire fidèlement les classes/visuels de la maquette.

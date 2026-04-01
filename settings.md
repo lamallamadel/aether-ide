@@ -2,7 +2,7 @@
 
 This document enumerates **all configuration surfaces currently present in the project** (build-time, tooling, deployment, and runtime UI state) and provides guidance for adding **environment-driven configuration** safely when needed.
 
-Important context: this repository is currently a **frontend-only Vite + React** app. There is **no database**, **no backend**, and **no app-defined environment variables** referenced in `src/` at the moment. Where the table of contents requires sections like “database configuration” or “API keys”, this file documents the **current state (none)** and provides **recommended placeholders/patterns** for future extension.
+Important context: this repository is currently a **frontend-only Vite + React** app. There is **no backend**, and no app-defined environment variables referenced in `src/` at the moment. The project does include a **local browser database** (IndexedDB) for vectors/files metadata, but no external server database. Where the table of contents requires sections like “database configuration” or “API keys”, this file documents the current state and provides recommended placeholders/patterns for future extension.
 
 ## Table of contents
 - [1. Configuration model](#1-configuration-model)
@@ -50,11 +50,11 @@ There are no required runtime environment variables for this repository at prese
 
 ### Optional settings (current project)
 Most “settings” are internal defaults you can adjust by editing code/config files:
-- UI state defaults in [editorStore.ts](file:///c:/Users/lamal/work/ide/src/state/editorStore.ts)
-- Search/index tuning in [GlobalSearch.tsx](file:///c:/Users/lamal/work/ide/src/components/GlobalSearch.tsx) and [indexer.worker.ts](file:///c:/Users/lamal/work/ide/src/workers/indexer.worker.ts)
-- Vitest setup in [vite.config.ts](file:///c:/Users/lamal/work/ide/vite.config.ts)
-- Tailwind scanning in [tailwind.config.ts](file:///c:/Users/lamal/work/ide/tailwind.config.ts)
-- Vercel SPA rewrite in [vercel.json](file:///c:/Users/lamal/work/ide/vercel.json)
+- UI state defaults in [editorStore.ts](./src/state/editorStore.ts)
+- Search/index tuning in [GlobalSearch.tsx](./src/components/GlobalSearch.tsx) and [indexer.worker.ts](./src/workers/indexer.worker.ts)
+- Vitest setup in [vite.config.ts](./vite.config.ts)
+- Tailwind scanning in [tailwind.config.ts](./tailwind.config.ts)
+- Vercel SPA rewrite in [vercel.json](./vercel.json)
 
 ## 3. Security-sensitive configurations
 
@@ -69,7 +69,7 @@ Most “settings” are internal defaults you can adjust by editing code/config 
 ## 4. Application settings
 
 ### 4.1 Runtime UI state (Zustand store defaults)
-Location: [editorStore.ts](file:///c:/Users/lamal/work/ide/src/state/editorStore.ts)
+Location: [editorStore.ts](./src/state/editorStore.ts)
 
 These values behave like **feature flags and default preferences**. They are internal (code-level) settings.
 
@@ -91,9 +91,9 @@ These values behave like **feature flags and default preferences**. They are int
 
 ### 4.2 Global Search settings (indexing & performance)
 Locations:
-- UI + filters: [GlobalSearch.tsx](file:///c:/Users/lamal/work/ide/src/components/GlobalSearch.tsx)
-- Worker indexing/search: [indexer.worker.ts](file:///c:/Users/lamal/work/ide/src/workers/indexer.worker.ts)
-- Index implementation: [tfidfIndex.ts](file:///c:/Users/lamal/work/ide/src/services/indexing/tfidfIndex.ts)
+- UI + filters: [GlobalSearch.tsx](./src/components/GlobalSearch.tsx)
+- Worker indexing/search: [indexer.worker.ts](./src/workers/indexer.worker.ts)
+- Index implementation: [tfidfIndex.ts](./src/services/indexing/tfidfIndex.ts)
 
 These settings are currently **internal constants** (changed by code edits). They affect performance on large file sets.
 
@@ -111,7 +111,7 @@ Examples:
 - To improve relevance on long files: reduce `maxLinesPerChunk` for more granular chunks.
 
 ### 4.3 Mission Control settings
-Location: [MissionControl.tsx](file:///c:/Users/lamal/work/ide/src/components/MissionControl.tsx)
+Location: [MissionControl.tsx](./src/components/MissionControl.tsx)
 
 Mission Control currently operates on **in-memory mock files** stored in the Zustand tree.
 
@@ -124,7 +124,7 @@ Mission Control currently operates on **in-memory mock files** stored in the Zus
 These settings control build, linting, styling, and testing behavior. They are configured in repository-level files.
 
 #### NPM scripts
-Location: [package.json](file:///c:/Users/lamal/work/ide/package.json)
+Location: [package.json](./package.json)
 
 | Setting name | Type | Default | Description | Valid values / range | Example |
 |---|---|---:|---|---|---|
@@ -135,7 +135,7 @@ Location: [package.json](file:///c:/Users/lamal/work/ide/package.json)
 | `scripts.lint` | `string` | `"eslint ."` | Runs ESLint | Any valid npm script command | `"eslint src"` |
 
 #### Vite + Vitest
-Location: [vite.config.ts](file:///c:/Users/lamal/work/ide/vite.config.ts)
+Location: [vite.config.ts](./vite.config.ts)
 
 | Setting name | Type | Default | Description | Valid values / range | Example |
 |---|---|---:|---|---|---|
@@ -145,7 +145,7 @@ Location: [vite.config.ts](file:///c:/Users/lamal/work/ide/vite.config.ts)
 | `test.setupFiles` | `string[]` | `["./src/test/setup.ts"]` | Test setup entrypoints | file paths | add more files |
 
 #### Tailwind CSS
-Location: [tailwind.config.ts](file:///c:/Users/lamal/work/ide/tailwind.config.ts)
+Location: [tailwind.config.ts](./tailwind.config.ts)
 
 | Setting name | Type | Default | Description | Valid values / range | Example |
 |---|---|---:|---|---|---|
@@ -154,7 +154,7 @@ Location: [tailwind.config.ts](file:///c:/Users/lamal/work/ide/tailwind.config.t
 | `plugins` | `unknown[]` | `[]` | Tailwind plugins | Tailwind plugin array | add forms/typography |
 
 #### ESLint
-Location: [eslint.config.js](file:///c:/Users/lamal/work/ide/eslint.config.js)
+Location: [eslint.config.js](./eslint.config.js)
 
 | Setting name | Type | Default | Description | Valid values / range | Example |
 |---|---|---:|---|---|---|
@@ -165,7 +165,7 @@ Location: [eslint.config.js](file:///c:/Users/lamal/work/ide/eslint.config.js)
 ## 5. Database configurations
 
 ### Current state
-This project has **no database**. There are no DB clients, migrations, schemas, or DB environment variables.
+This project has **no server-side database** and no DB environment variables. It does use a **local IndexedDB layer** in the browser (e.g. `AetherDB` / `VectorStore`) for client-side persistence.
 
 ### If you add a backend later (recommended placeholders)
 Use server-side env vars (not `VITE_*`):
@@ -230,7 +230,7 @@ Build-time performance knobs (optional, Vite):
 ## 10. Deployment-specific settings
 
 ### Vercel
-Location: [vercel.json](file:///c:/Users/lamal/work/ide/vercel.json)
+Location: [vercel.json](./vercel.json)
 
 | Setting name | Type | Default | Description | Valid values / range | Example |
 |---|---|---:|---|---|---|
@@ -277,7 +277,7 @@ npm run build
 ## 12. Configuration examples
 
 ### 12.1 Configuration files
-Vitest configuration lives in [vite.config.ts](file:///c:/Users/lamal/work/ide/vite.config.ts):
+Vitest configuration lives in [vite.config.ts](./vite.config.ts):
 
 ```ts
 import { defineConfig } from 'vitest/config'
@@ -334,7 +334,7 @@ export function loadConfig(): AppConfig {
 
 ### Build fails with “`test` does not exist in type `UserConfigExport`”
 Cause: using `defineConfig` from `vite` while also providing a `test` section.
-Fix: import `defineConfig` from `vitest/config` (already applied in this repo). See [vite.config.ts](file:///c:/Users/lamal/work/ide/vite.config.ts).
+Fix: import `defineConfig` from `vitest/config` (already applied in this repo). See [vite.config.ts](./vite.config.ts).
 
 ### Environment variable is undefined in the app
 Common causes:

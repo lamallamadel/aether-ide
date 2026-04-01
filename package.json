@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "docs:lint": "markdownlint \"README.md\" \"settings.md\" \"CONTRIBUTING.md\" \"docs/**/*.md\" \"DOC_REVIEW_2026-03-31.md\" --ignore \"docs/archive/**\"",
+    "docs:check": "npm run docs:lint",
     "preview": "vite preview",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
@@ -51,6 +53,7 @@
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
     "jsdom": "^28.0.0",
+    "markdownlint-cli": "^0.48.0",
     "path-browserify": "^1.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",

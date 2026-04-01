@@ -1,7 +1,7 @@
 # Aether Code IDE (prototype IDE IA)
 
 Application web inspirée de Sublime/Cursor, implémentée à partir des spécifications :
-- [Maquette.md](./Maquette.md) : UI + état + workflows
+- [Maquette.md](./docs/archive/Maquette.md) : UI + état + workflows
 - [Création d'un IDE inspiré Sublime_Cursor.md](./Création%20d'un%20IDE%20inspiré%20Sublime_Cursor.md) : contraintes d’architecture (async, API agent-friendly, indexation, worktree)
 
 ## Fonctionnalités
@@ -20,10 +20,11 @@ Application web inspirée de Sublime/Cursor, implémentée à partir des spécif
 ## Captures d’écran
 - Ajoutez vos captures dans `docs/screenshots/`
 - Recommandé : `docs/screenshots/menu-bar.png`, `docs/screenshots/global-search.png`, `docs/screenshots/settings.png`
+- Note : le dépôt ne fournit actuellement qu'un placeholder (`docs/screenshots/.gitkeep`).
 
 ## Accessibilité
-- Navigation clavier menu : [keyboard-navigation.md](file:///c:/Users/lamal/work/ide/docs/accessibility/keyboard-navigation.md)
-- Rapport de test a11y : [a11y-test-report.md](file:///c:/Users/lamal/work/ide/docs/accessibility/a11y-test-report.md)
+- Navigation clavier menu : [keyboard-navigation.md](./docs/accessibility/keyboard-navigation.md)
+- Rapport de test a11y : [a11y-test-report.md](./docs/accessibility/a11y-test-report.md)
 - Global Search : focus visible aligné thème (résultats + filtres)
 
 ## Prototypes “architecture”
@@ -36,6 +37,10 @@ Application web inspirée de Sublime/Cursor, implémentée à partir des spécif
 - `src/state/` : Zustand store
 - `src/domain/` : types et données mock
 - `src/services/` : logique “moteur” (diff, index, buffer, JSON‑RPC)
+
+## Documentation
+- Index et statuts documentaires : [docs/README.md](./docs/README.md)
+- Guide de contribution : [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ## Développement
 ```bash
@@ -55,5 +60,5 @@ npm run build
 
 ## Limitations connues
 - **Chat IA** : utilise uniquement GraphRAG (retrieval). Pas de génération LLM — les réponses sont des snippets formatés, pas un vrai dialogue.
-- **Fichiers** : arbre statique (`INITIAL_FILES`). Pas de File System Access API ni d'import de projet réel.
+- **Fichiers** : un flux projet réel est disponible via File System Access API, mais reste dépendant des capacités du navigateur et d'un contexte sécurisé (HTTPS/localhost). Certaines expériences restent orientées prototype.
 - **Cloud vs Local** : le mode Cloud n'appelle pas d'API externe. Les deux modes utilisent des embeddings locaux ([@huggingface/transformers](https://huggingface.co/docs/transformers.js)).

@@ -11,7 +11,7 @@ Ce document décrit la navigation au clavier et les attributs ARIA utilisés pou
 - Les états focus sont visibles (outline + fond) et conformes aux exigences de contraste WCAG 2.1.
 
 ## Menu latéral (Activity Bar)
-Fichier : [ActivityBar.tsx](file:///c:/Users/lamal/work/ide/src/components/ActivityBar.tsx)
+Fichier : [ActivityBar.tsx](../../src/components/ActivityBar.tsx)
 
 ### Éléments focusables
 - Toggle Sidebar
@@ -25,13 +25,13 @@ Fichier : [ActivityBar.tsx](file:///c:/Users/lamal/work/ide/src/components/Activ
 - `Entrée` / `Espace` : activation (natif via `button`)
 
 ### Style focus
-Fichier : [index.css](file:///c:/Users/lamal/work/ide/src/index.css)
+Fichier : [index.css](../../src/index.css)
 - `.activity-item:focus, .activity-item:focus-visible`
   - `outline: 2px solid #a855f7`
   - `background: rgba(168, 85, 247, 0.18)`
 
 ## Menu haut + sous-menus
-Fichier : [MenuBar.tsx](file:///c:/Users/lamal/work/ide/src/components/MenuBar.tsx)
+Fichier : [MenuBar.tsx](../../src/components/MenuBar.tsx)
 
 ### ARIA & rôles
 - Conteneur : `nav` avec `aria-label="Top menu"`
@@ -50,7 +50,7 @@ Fichier : [MenuBar.tsx](file:///c:/Users/lamal/work/ide/src/components/MenuBar.t
 - `Flèche bas` / `Flèche haut` dans un dropdown : déplace le focus entre items
 
 ### Style focus
-Fichier : [index.css](file:///c:/Users/lamal/work/ide/src/index.css)
+Fichier : [index.css](../../src/index.css)
 - `.menu-button:focus-visible`, `.menu-item:focus-visible` :
   - outline visible
   - fond actif/hover (différenciation nette)
@@ -66,5 +66,5 @@ Comportements :
 - Ouverture d’une modal (palette/settings/global search/mission control) : fermeture du dropdown.
 
 Implémentation :
-- JS : [MenuBar.tsx](file:///c:/Users/lamal/work/ide/src/components/MenuBar.tsx)
-- CSS : `.menu-dropdown-in` initialise `opacity/transform` avant l’animation : [index.css](file:///c:/Users/lamal/work/ide/src/index.css)
+- JS : [MenuBar.tsx](../../src/components/MenuBar.tsx)
+- CSS : `.menu-dropdown-in` initialise `opacity/transform` avant l’animation : [index.css](../../src/index.css)

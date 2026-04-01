@@ -8,14 +8,14 @@ Objectif : garantir que 100% des éléments du menu latéral et des sous-menus d
 - annoncés correctement par un lecteur d’écran
 
 ## Périmètre
-- Menu latéral : [ActivityBar.tsx](file:///c:/Users/lamal/work/ide/src/components/ActivityBar.tsx)
-- Menu haut : [MenuBar.tsx](file:///c:/Users/lamal/work/ide/src/components/MenuBar.tsx)
-- Styles focus : [index.css](file:///c:/Users/lamal/work/ide/src/index.css)
-- Global Search (résultats + filtres) : [GlobalSearch.tsx](file:///c:/Users/lamal/work/ide/src/components/GlobalSearch.tsx)
+- Menu latéral : [ActivityBar.tsx](../../src/components/ActivityBar.tsx)
+- Menu haut : [MenuBar.tsx](../../src/components/MenuBar.tsx)
+- Styles focus : [index.css](../../src/index.css)
+- Global Search (résultats + filtres) : [GlobalSearch.tsx](../../src/components/GlobalSearch.tsx)
 
 ## Vérification “100% focusable”
 Contrôle automatisé (tests) :
-- [App.test.tsx](file:///c:/Users/lamal/work/ide/src/components/App.test.tsx) vérifie :
+- [App.test.tsx](../../src/components/App.test.tsx) vérifie :
   - présence de `tabindex="0"` sur les boutons du menu latéral
   - présence de `tabindex="0"` sur un bouton top-menu et un menuitem (exemple View)
 
@@ -29,9 +29,9 @@ Constat :
 
 Correctif :
 - Les éléments Global Search utilisent des classes dédiées (`search-result-item`, `search-select`, `search-chip`) pour appliquer un focus `:focus-visible` cohérent avec les tokens de thème (violet).
-- Styles : [index.css](file:///c:/Users/lamal/work/ide/src/index.css)
+- Styles : [index.css](../../src/index.css)
 - Les menus déroulants “Mode/Scope” n’utilisent plus de `<select>` natif : un contrôle custom est utilisé pour éviter la coloration bleue du choix sélectionné dans la liste d’options (UI navigateur/OS non stylable de manière fiable).
-- Composant : [ThemedSelect.tsx](file:///c:/Users/lamal/work/ide/src/components/ThemedSelect.tsx)
+- Composant : [ThemedSelect.tsx](../../src/components/ThemedSelect.tsx)
 
 ## Menu haut — visibilité dropdown (régression évitée)
 Constat :
