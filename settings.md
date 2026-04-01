@@ -85,6 +85,10 @@ These values behave like **feature flags and default preferences**. They are int
 | `worktreeChanges` | `Record<string, Change>` | `{}` | Pending “worktree” changes (Mission Control) | Keys are `fileId` | `{ "App.tsx": {...} }` |
 | `lspMode` | `'embedded' \| 'external' \| 'auto'` | `'embedded'` | Runtime mode for Aether LSP | embedded/external/auto | `'auto'` |
 | `externalLspEndpoint` | `string` | `""` | HTTP endpoint for external Aether/YAML LSP bridge | URL string | `"http://localhost:3001/lsp"` |
+| `runtimeEnvironment` | `RuntimeEnvironment` | `{ mode: "development", ... }` | Resolved runtime defaults loaded from `import.meta.env` | typed object | `{ mode: "staging", ... }` |
+| `workspaceEnvironment` | `WorkspaceEnvironment \| null` | `null` | Active workspace-level overrides | typed object or null | `{ workspaceId: "my-project", overrides: { lspMode: "auto" } }` |
+| `workspaceEnvironmentStatus` | `'not_loaded' \| 'loading' \| 'ready' \| 'degraded'` | `'not_loaded'` | Workspace environment lifecycle state | enum | `'ready'` |
+| `resolvedEnvironment` | `ResolvedEnvironment` | derived | Final environment after priority merge | typed object | `{ aiMode: "local", sourceByField: ... }` |
 
 `Change` structure (stored in `worktreeChanges`):
 - `fileId`: `string`
@@ -99,6 +103,11 @@ These values behave like **feature flags and default preferences**. They are int
 ### YAML editor defaults
 - Files ending in `.yaml` or `.yml` are mapped to the YAML language pipeline.
 - YAML LSP uses the same runtime mode settings (`embedded`, `external`, `auto`) with automatic fallback.
+
+### Runtime + workspace resolution
+- Priority order: **workspace overrides > runtime defaults > fallback values**.
+- Runtime is loaded from client-safe vars (`VITE_*`) through a centralized loader.
+- Workspace environment is built when a project directory is opened and can be reset from Settings.
 
 ### 4.2 Global Search settings (indexing & performance)
 Locations:

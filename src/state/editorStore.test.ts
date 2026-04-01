@@ -59,6 +59,17 @@ beforeEach(() => {
     editorFontSizePx: 14,
     editorWordWrap: false,
     editorMinimap: true,
+    runtimeEnvironment: { mode: 'development', aiMode: 'cloud', lspMode: 'embedded', externalLspEndpoint: '' },
+    workspaceEnvironment: null,
+    workspaceEnvironmentStatus: 'not_loaded',
+    resolvedEnvironment: {
+      mode: 'development',
+      aiMode: 'cloud',
+      lspMode: 'embedded',
+      externalLspEndpoint: '',
+      sourceByField: { aiMode: 'runtime', lspMode: 'runtime', externalLspEndpoint: 'fallback' },
+    },
+    activeWorkspaceId: null,
     _untitledCounter: 1,
     syntaxTrees: {},
     symbolsByFile: {},
@@ -305,5 +316,28 @@ describe('editorStore', () => {
     expect(ok).toBe(true)
     const { writeFileContent } = await import('../services/fileSystem/fileSystemAccess')
     expect(writeFileContent).toHaveBeenCalled()
+  })
+
+  it('setRuntimeEnvironment applique les valeurs runtime', () => {
+    const { setRuntimeEnvironment } = useEditorStore.getState()
+    setRuntimeEnvironment({
+      mode: 'staging',
+      aiMode: 'local',
+      lspMode: 'auto',
+      externalLspEndpoint: 'http://localhost:3333/lsp',
+    })
+    const state = useEditorStore.getState()
+    expect(state.aiMode).toBe('local')
+    expect(state.lspMode).toBe('auto')
+    expect(state.externalLspEndpoint).toBe('http://localhost:3333/lsp')
+  })
+
+  it('loadProjectFromDirectory initialise workspaceEnvironment', async () => {
+    const { loadProjectFromDirectory } = useEditorStore.getState()
+    await loadProjectFromDirectory({ name: 'ws-test' } as FileSystemDirectoryHandle)
+    const state = useEditorStore.getState()
+    expect(state.activeWorkspaceId).toBe('ws-test')
+    expect(state.workspaceEnvironmentStatus).toBe('ready')
+    expect(state.workspaceEnvironment?.workspaceId).toBe('ws-test')
   })
 })

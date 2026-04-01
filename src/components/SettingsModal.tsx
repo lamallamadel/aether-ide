@@ -26,6 +26,11 @@ export function SettingsModal() {
     setLspMode,
     externalLspEndpoint,
     setExternalLspEndpoint,
+    runtimeEnvironment,
+    workspaceEnvironmentStatus,
+    activeWorkspaceId,
+    resolvedEnvironment,
+    resetWorkspaceEnvironment,
   } = useEditorStore(
     useShallow((s) => ({
       settingsOpen: s.settingsOpen,
@@ -48,6 +53,11 @@ export function SettingsModal() {
       setLspMode: s.setLspMode,
       externalLspEndpoint: s.externalLspEndpoint,
       setExternalLspEndpoint: s.setExternalLspEndpoint,
+      runtimeEnvironment: s.runtimeEnvironment,
+      workspaceEnvironmentStatus: s.workspaceEnvironmentStatus,
+      activeWorkspaceId: s.activeWorkspaceId,
+      resolvedEnvironment: s.resolvedEnvironment,
+      resetWorkspaceEnvironment: s.resetWorkspaceEnvironment,
     }))
   )
 
@@ -345,6 +355,27 @@ export function SettingsModal() {
                 className="w-full bg-[#111111] border border-white/10 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none"
               />
             </div>
+          </div>
+
+          <div className="h-px bg-white/5" />
+
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Environment</h3>
+            <div className="grid grid-cols-1 gap-2 text-xs text-gray-400 bg-black/20 rounded border border-white/10 p-3">
+              <div>Runtime mode: <span className="text-gray-200">{runtimeEnvironment.mode}</span></div>
+              <div>Workspace: <span className="text-gray-200">{activeWorkspaceId ?? 'none'}</span></div>
+              <div>Workspace status: <span className="text-gray-200">{workspaceEnvironmentStatus}</span></div>
+              <div>
+                Sources: <span className="text-gray-200">ai={resolvedEnvironment.sourceByField.aiMode}, lsp={resolvedEnvironment.sourceByField.lspMode}, endpoint={resolvedEnvironment.sourceByField.externalLspEndpoint}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={resetWorkspaceEnvironment}
+              className="w-full bg-[#111111] border border-white/10 rounded px-3 py-2 text-sm text-gray-200 hover:bg-white/5"
+            >
+              Reset workspace overrides
+            </button>
           </div>
 
           <div className="h-px bg-white/5" />

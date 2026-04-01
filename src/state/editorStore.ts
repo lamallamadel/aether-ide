@@ -5,6 +5,8 @@ import type { ExtractedSymbol, SerializedTree } from '../services/syntax/syntaxT
 import type { PerfMetrics } from '../services/perf/perfMonitor'
 import { readDirectoryRecursive, writeFileContent } from '../services/fileSystem/fileSystemAccess'
 import type { AetherLspMode } from '../lsp/server/aetherEmbeddedServer'
+import type { RuntimeEnvironment, WorkspaceEnvironment, WorkspaceEnvironmentStatus, ResolvedEnvironment } from '../config/environment'
+import { resolveEnvironment } from '../config/environment'
 
 export type AiHealthStatus = 'full' | 'degraded' | 'offline' | 'loading'
 
@@ -39,6 +41,11 @@ export interface EditorState {
   ideThemeColor: string
   lspMode: AetherLspMode
   externalLspEndpoint: string
+  runtimeEnvironment: RuntimeEnvironment
+  workspaceEnvironment: WorkspaceEnvironment | null
+  workspaceEnvironmentStatus: WorkspaceEnvironmentStatus
+  resolvedEnvironment: ResolvedEnvironment
+  activeWorkspaceId: string | null
   _untitledCounter: number
   syntaxTrees: Record<string, SerializedTree>
   symbolsByFile: Record<string, ExtractedSymbol[]>
@@ -74,6 +81,10 @@ export interface EditorState {
   setIdeThemeColor: (color: string) => void
   setLspMode: (mode: AetherLspMode) => void
   setExternalLspEndpoint: (endpoint: string) => void
+  setRuntimeEnvironment: (env: RuntimeEnvironment) => void
+  setWorkspaceEnvironment: (env: WorkspaceEnvironment | null, status?: WorkspaceEnvironmentStatus) => void
+  setWorkspaceEnvironmentStatus: (status: WorkspaceEnvironmentStatus) => void
+  resetWorkspaceEnvironment: () => void
   createUntitledFile: () => void
   upsertWorktreeChange: (change: { fileId: string; originalContent: string; proposedContent: string }) => void
   rejectWorktreeChange: (fileId: string) => void
@@ -155,6 +166,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   ideThemeColor: 'purple',
   lspMode: 'embedded',
   externalLspEndpoint: '',
+  runtimeEnvironment: { mode: 'development', aiMode: 'cloud', lspMode: 'embedded', externalLspEndpoint: '' },
+  workspaceEnvironment: null,
+  workspaceEnvironmentStatus: 'not_loaded',
+  resolvedEnvironment: {
+    mode: 'development',
+    aiMode: 'cloud',
+    lspMode: 'embedded',
+    externalLspEndpoint: '',
+    sourceByField: { aiMode: 'runtime', lspMode: 'runtime', externalLspEndpoint: 'fallback' },
+  },
+  activeWorkspaceId: null,
   _untitledCounter: 1,
   syntaxTrees: {},
   symbolsByFile: {},
@@ -199,7 +221,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setTerminalPanelOpen: (open) => set({ terminalPanelOpen: open }),
   setTerminalPanelHeight: (height) => set({ terminalPanelHeight: height }),
   toggleTerminalPanel: () => set((s) => ({ terminalPanelOpen: !s.terminalPanelOpen })),
-  setAiMode: (mode) => set({ aiMode: mode }),
+  setAiMode: (mode) =>
+    set((state) => {
+      const workspaceEnvironment = state.workspaceEnvironment
+        ? { ...state.workspaceEnvironment, overrides: { ...state.workspaceEnvironment.overrides, aiMode: mode } }
+        : null
+      return {
+        aiMode: mode,
+        workspaceEnvironment,
+        resolvedEnvironment: resolveEnvironment(state.runtimeEnvironment, workspaceEnvironment),
+      }
+    }),
   setAiHealth: (status) => set({ aiHealth: status }),
   setIndexingError: (error) => set({ indexingError: error }),
   setStorageQuotaExceeded: (exceeded) => set({ storageQuotaExceeded: exceeded }),
@@ -211,8 +243,64 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setEditorTheme: (theme) => set({ editorTheme: theme }),
   setEditorFontFamily: (font) => set({ editorFontFamily: font }),
   setIdeThemeColor: (color) => set({ ideThemeColor: color }),
-  setLspMode: (mode) => set({ lspMode: mode }),
-  setExternalLspEndpoint: (endpoint) => set({ externalLspEndpoint: endpoint }),
+  setLspMode: (mode) =>
+    set((state) => {
+      const workspaceEnvironment = state.workspaceEnvironment
+        ? { ...state.workspaceEnvironment, overrides: { ...state.workspaceEnvironment.overrides, lspMode: mode } }
+        : null
+      return {
+        lspMode: mode,
+        workspaceEnvironment,
+        resolvedEnvironment: resolveEnvironment(state.runtimeEnvironment, workspaceEnvironment),
+      }
+    }),
+  setExternalLspEndpoint: (endpoint) =>
+    set((state) => {
+      const workspaceEnvironment = state.workspaceEnvironment
+        ? { ...state.workspaceEnvironment, overrides: { ...state.workspaceEnvironment.overrides, externalLspEndpoint: endpoint } }
+        : null
+      return {
+        externalLspEndpoint: endpoint,
+        workspaceEnvironment,
+        resolvedEnvironment: resolveEnvironment(state.runtimeEnvironment, workspaceEnvironment),
+      }
+    }),
+  setRuntimeEnvironment: (env) =>
+    set((state) => {
+      const resolved = resolveEnvironment(env, state.workspaceEnvironment)
+      return {
+        runtimeEnvironment: env,
+        aiMode: resolved.aiMode,
+        lspMode: resolved.lspMode,
+        externalLspEndpoint: resolved.externalLspEndpoint,
+        resolvedEnvironment: resolved,
+      }
+    }),
+  setWorkspaceEnvironment: (env, status = 'ready') =>
+    set((state) => {
+      const resolved = resolveEnvironment(state.runtimeEnvironment, env)
+      return {
+        workspaceEnvironment: env,
+        workspaceEnvironmentStatus: status,
+        aiMode: resolved.aiMode,
+        lspMode: resolved.lspMode,
+        externalLspEndpoint: resolved.externalLspEndpoint,
+        resolvedEnvironment: resolved,
+      }
+    }),
+  setWorkspaceEnvironmentStatus: (status) => set({ workspaceEnvironmentStatus: status }),
+  resetWorkspaceEnvironment: () =>
+    set((state) => {
+      const resolved = resolveEnvironment(state.runtimeEnvironment, null)
+      return {
+        workspaceEnvironment: null,
+        workspaceEnvironmentStatus: state.activeWorkspaceId ? 'ready' : 'not_loaded',
+        aiMode: resolved.aiMode,
+        lspMode: resolved.lspMode,
+        externalLspEndpoint: resolved.externalLspEndpoint,
+        resolvedEnvironment: resolved,
+      }
+    }),
 
   createUntitledFile: () =>
     set((state) => {
@@ -267,6 +355,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   clearWorktree: () => set({ worktreeChanges: {} }),
 
   loadProjectFromDirectory: async (handle) => {
+    set({ workspaceEnvironmentStatus: 'loading' })
     try {
       const { files: newFiles, fileHandles: handles } = await readDirectoryRecursive(handle)
       const firstFileId = (() => {
@@ -278,18 +367,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         newFiles.forEach((root) => visit(root))
         return flat[0]?.id ?? null
       })()
+      const workspaceId = handle.name || 'workspace'
+      const workspaceEnvironment: WorkspaceEnvironment = {
+        workspaceId,
+        overrides: {},
+      }
       set({
         files: newFiles,
         fileHandles: handles,
         openFiles: firstFileId ? [firstFileId] : [],
         activeFileId: firstFileId,
+        activeWorkspaceId: workspaceId,
         worktreeChanges: {},
         syntaxTrees: {},
         symbolsByFile: {},
+        workspaceEnvironment,
+        workspaceEnvironmentStatus: 'ready',
+        resolvedEnvironment: resolveEnvironment(get().runtimeEnvironment, workspaceEnvironment),
       })
     } catch (err) {
       console.error('loadProjectFromDirectory failed', err)
-      set({ indexingError: err instanceof Error ? err.message : 'Failed to load project' })
+      set({ indexingError: err instanceof Error ? err.message : 'Failed to load project', workspaceEnvironmentStatus: 'degraded' })
     }
   },
 

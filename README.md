@@ -22,6 +22,7 @@ Application web inspirée de Sublime/Cursor, implémentée à partir des spécif
 - LSP Aether: mode `embedded` (par défaut), `external` et `auto` (fallback automatique)
 - LSP YAML: mode `embedded` (par défaut), `external` et `auto` (fallback automatique)
 - Langage Aether par défaut pour les nouveaux buffers et les fichiers `.aether`
+- Environnement unifié runtime + workspace (résolution déterministe runtime/workspace/fallback)
 
 ## Captures d’écran
 - Ajoutez vos captures dans `docs/screenshots/`

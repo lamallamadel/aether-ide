@@ -23,9 +23,10 @@ import { aetherLspClient } from './lsp/client/aetherLspClient'
 import { ExternalHttpLspTransport } from './lsp/client/externalTransport'
 import { yamlLspClient } from './lsp/client/yamlLspClient'
 import { extensionHost } from './extensions/host'
+import { loadRuntimeEnvironment } from './config/environment'
 
 export default function App() {
-  const { files, activeFileId, terminalPanelOpen, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError, toggleTerminalPanel, lspMode, externalLspEndpoint } =
+  const { files, activeFileId, terminalPanelOpen, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError, toggleTerminalPanel, lspMode, externalLspEndpoint, setRuntimeEnvironment } =
     useEditorStore(useShallow((s) => ({
       files: s.files,
       activeFileId: s.activeFileId,
@@ -44,6 +45,7 @@ export default function App() {
       toggleTerminalPanel: s.toggleTerminalPanel,
       lspMode: s.lspMode,
       externalLspEndpoint: s.externalLspEndpoint,
+      setRuntimeEnvironment: s.setRuntimeEnvironment,
     })))
 
   useEffect(() => {
@@ -59,6 +61,10 @@ export default function App() {
   useEffect(() => {
     registerBuiltinExtensions().catch((error) => console.error('Failed to initialize builtin extensions', error))
   }, [])
+
+  useEffect(() => {
+    setRuntimeEnvironment(loadRuntimeEnvironment())
+  }, [setRuntimeEnvironment])
 
   useEffect(() => {
     const external = externalLspEndpoint ? new ExternalHttpLspTransport(externalLspEndpoint) : undefined
