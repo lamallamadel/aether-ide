@@ -18,6 +18,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
 import { markdown } from '@codemirror/lang-markdown'
+import { yaml } from '@codemirror/lang-yaml'
 import { gutter, GutterMarker } from '@codemirror/view'
 import { useEffect, useMemo, useRef } from 'react'
 import type { ExtractedSymbol } from '../services/syntax/syntaxTypes'
@@ -124,6 +125,7 @@ const aiGutter = gutter({
 function languageForFile(fileId: string | null) {
   if (!fileId) return markdown()
   const lower = fileId.toLowerCase()
+  if (lower.endsWith('.yaml') || lower.endsWith('.yml')) return yaml()
   if (lower.endsWith('.aether')) return markdown()
   if (lower.endsWith('.ts') || lower.endsWith('.tsx') || lower.endsWith('.js') || lower.endsWith('.jsx')) return javascript({ typescript: true })
   if (lower.endsWith('.json')) return json()

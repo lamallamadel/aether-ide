@@ -313,7 +313,7 @@ export function SettingsModal() {
           <div className="h-px bg-white/5" />
 
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Language Server (Aether)</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Language Server (Aether + YAML)</h3>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/5 rounded text-gray-400">
@@ -336,7 +336,7 @@ export function SettingsModal() {
               />
             </div>
             <div className="flex items-center justify-between gap-3">
-              <div className="text-sm text-gray-200 min-w-[140px]">External endpoint</div>
+              <div className="text-sm text-gray-200 min-w-[140px]">External endpoint (Aether/YAML)</div>
               <input
                 aria-label="External LSP endpoint"
                 value={externalLspEndpoint}

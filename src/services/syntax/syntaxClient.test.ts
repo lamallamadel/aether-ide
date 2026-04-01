@@ -6,4 +6,9 @@ describe('languageIdForFile', () => {
     expect(languageIdForFile('workflow.aether')).toBe('aether')
     expect(languageIdForFile('README')).toBe('aether')
   })
+
+  it('returns yaml for .yaml and .yml files', () => {
+    expect(languageIdForFile('docker-compose.yaml')).toBe('yaml')
+    expect(languageIdForFile('pipeline.yml')).toBe('yaml')
+  })
 })

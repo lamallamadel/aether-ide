@@ -16,6 +16,7 @@ This index defines which documents are the source of truth and how to use the re
 | `settings.md` | Canonique | Configuration surfaces and runtime/tooling settings |
 | `docs/architecture/ADR-003-transformers-local.md` | Canonique | Accepted architecture decision for local embeddings |
 | `docs/architecture/ADR-004-extensions-lsp-aether.md` | Canonique | Accepted architecture decision for extensions + Aether LSP |
+| `docs/architecture/ADR-005-yaml-extension-lsp.md` | Canonique | Accepted architecture decision for YAML extension + LSP |
 | `docs/accessibility/keyboard-navigation.md` | Support | Keyboard/ARIA behavior details |
 | `docs/accessibility/a11y-test-report.md` | Support | Accessibility validation report |
 | `docs/release/traceability-matrix.md` | Support | Feature-to-validation mapping for release readiness |

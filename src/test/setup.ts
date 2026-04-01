@@ -43,7 +43,9 @@ vi.mock('../services/perf/perfMonitor', () => ({
 vi.mock('../services/syntax/syntaxClient', () => ({
   parseFileContent: vi.fn().mockResolvedValue({ tree: null, symbols: [] }),
   languageIdForFile: (path: string) =>
-    path.endsWith('.aether')
+    path.endsWith('.yaml') || path.endsWith('.yml')
+      ? 'yaml'
+      : path.endsWith('.aether')
       ? 'aether'
       : path.endsWith('.tsx')
         ? 'tsx'

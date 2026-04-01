@@ -21,11 +21,14 @@ import { THEME_COLORS } from './lib/theme'
 import { registerBuiltinExtensions } from './extensions/builtin/registerBuiltinExtensions'
 import { aetherLspClient } from './lsp/client/aetherLspClient'
 import { ExternalHttpLspTransport } from './lsp/client/externalTransport'
+import { yamlLspClient } from './lsp/client/yamlLspClient'
+import { extensionHost } from './extensions/host'
 
 export default function App() {
-  const { files, terminalPanelOpen, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError, toggleTerminalPanel, lspMode, externalLspEndpoint } =
+  const { files, activeFileId, terminalPanelOpen, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError, toggleTerminalPanel, lspMode, externalLspEndpoint } =
     useEditorStore(useShallow((s) => ({
       files: s.files,
+      activeFileId: s.activeFileId,
       terminalPanelOpen: s.terminalPanelOpen,
       setCommandPaletteOpen: s.setCommandPaletteOpen,
       setGoToSymbolOpen: s.setGoToSymbolOpen,
@@ -60,8 +63,18 @@ export default function App() {
   useEffect(() => {
     const external = externalLspEndpoint ? new ExternalHttpLspTransport(externalLspEndpoint) : undefined
     aetherLspClient.setMode(lspMode, external)
+    yamlLspClient.setMode(lspMode, external)
     aetherLspClient.initialize().catch((e) => console.warn('Aether LSP init failed', e))
+    yamlLspClient.initialize().catch((e) => console.warn('YAML LSP init failed', e))
   }, [lspMode, externalLspEndpoint])
+
+  useEffect(() => {
+    if (!activeFileId) return
+    const lower = activeFileId.toLowerCase()
+    if (lower.endsWith('.yaml') || lower.endsWith('.yml')) {
+      extensionHost.activateByEvent('onLanguage:yaml').catch((e) => console.warn('YAML extension activation failed', e))
+    }
+  }, [activeFileId])
 
   useEffect(() => {
     // Indexing of Files (re-runs when files change, e.g. after Open Folder)

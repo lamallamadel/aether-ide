@@ -27,4 +27,20 @@ describe('ExtensionHost', () => {
     expect(entries[0]?.state).toBe('active')
     expect(host.hasPermission('workspace.read')).toBe(true)
   })
+
+  it('activates extension on language event', async () => {
+    const host = new ExtensionHost()
+    host.register({
+      ...createExtension('yaml.native.test', ['workspace.search']),
+      manifest: {
+        ...createExtension('yaml.native.test', ['workspace.search']).manifest,
+        activationEvents: ['onLanguage:yaml'],
+      },
+    })
+
+    await host.activateByEvent('onLanguage:yaml')
+    const yamlEntry = host.list().find((entry) => entry.module.manifest.id === 'yaml.native.test')
+    expect(yamlEntry?.state).toBe('active')
+    expect(host.hasPermission('workspace.search')).toBe(true)
+  })
 })

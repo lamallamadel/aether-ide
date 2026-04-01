@@ -18,7 +18,9 @@ Application web inspirée de Sublime/Cursor, implémentée à partir des spécif
 - StatusBar : métriques 16ms (Long Tasks) en temps réel
 - Module d'extensions hybride (in-process + sandbox worker)
 - Extension builtin `aether.native` activée au démarrage
+- Extension builtin `yaml.native` activée au démarrage et à l'ouverture de fichiers YAML
 - LSP Aether: mode `embedded` (par défaut), `external` et `auto` (fallback automatique)
+- LSP YAML: mode `embedded` (par défaut), `external` et `auto` (fallback automatique)
 - Langage Aether par défaut pour les nouveaux buffers et les fichiers `.aether`
 
 ## Captures d’écran
