@@ -18,9 +18,12 @@ import { startPerfMonitor } from './services/perf/perfMonitor'
 import { workerBridge } from './services/workers/WorkerBridge'
 import { vectorStore } from './services/db/VectorStore'
 import { THEME_COLORS } from './lib/theme'
+import { registerBuiltinExtensions } from './extensions/builtin/registerBuiltinExtensions'
+import { aetherLspClient } from './lsp/client/aetherLspClient'
+import { ExternalHttpLspTransport } from './lsp/client/externalTransport'
 
 export default function App() {
-  const { files, terminalPanelOpen, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError, toggleTerminalPanel } =
+  const { files, terminalPanelOpen, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError, toggleTerminalPanel, lspMode, externalLspEndpoint } =
     useEditorStore(useShallow((s) => ({
       files: s.files,
       terminalPanelOpen: s.terminalPanelOpen,
@@ -36,6 +39,8 @@ export default function App() {
       setMissionControlOpen: s.setMissionControlOpen,
       setIndexingError: s.setIndexingError,
       toggleTerminalPanel: s.toggleTerminalPanel,
+      lspMode: s.lspMode,
+      externalLspEndpoint: s.externalLspEndpoint,
     })))
 
   useEffect(() => {
@@ -47,6 +52,16 @@ export default function App() {
     window.addEventListener('aether-ai-click', onAIClick)
     return () => window.removeEventListener('aether-ai-click', onAIClick)
   }, [setMissionControlOpen])
+
+  useEffect(() => {
+    registerBuiltinExtensions().catch((error) => console.error('Failed to initialize builtin extensions', error))
+  }, [])
+
+  useEffect(() => {
+    const external = externalLspEndpoint ? new ExternalHttpLspTransport(externalLspEndpoint) : undefined
+    aetherLspClient.setMode(lspMode, external)
+    aetherLspClient.initialize().catch((e) => console.warn('Aether LSP init failed', e))
+  }, [lspMode, externalLspEndpoint])
 
   useEffect(() => {
     // Indexing of Files (re-runs when files change, e.g. after Open Folder)

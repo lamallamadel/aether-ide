@@ -43,7 +43,15 @@ vi.mock('../services/perf/perfMonitor', () => ({
 vi.mock('../services/syntax/syntaxClient', () => ({
   parseFileContent: vi.fn().mockResolvedValue({ tree: null, symbols: [] }),
   languageIdForFile: (path: string) =>
-    path.endsWith('.tsx') ? 'tsx' : path.endsWith('.ts') ? 'typescript' : path.match(/\.(js|jsx)$/i) ? 'javascript' : null,
+    path.endsWith('.aether')
+      ? 'aether'
+      : path.endsWith('.tsx')
+        ? 'tsx'
+        : path.endsWith('.ts')
+          ? 'typescript'
+          : path.match(/\.(js|jsx)$/i)
+            ? 'javascript'
+            : 'aether',
 }))
 
 // Mock graphragDb for tests (no IndexedDB in Node/jsdom)

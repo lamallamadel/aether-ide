@@ -169,7 +169,7 @@ describe('editorStore', () => {
     const { createUntitledFile, findNode } = useEditorStore.getState()
     createUntitledFile()
     const state = useEditorStore.getState()
-    expect(state.activeFileId).toMatch(/^Untitled-\d+\.ts$/)
+    expect(state.activeFileId).toMatch(/^Untitled-\d+\.aether$/)
     expect(findNode(state.activeFileId!)).toBeTruthy()
     expect(state.openFiles).toContain(state.activeFileId)
   })

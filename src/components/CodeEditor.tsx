@@ -122,12 +122,13 @@ const aiGutter = gutter({
 // --- End AI Gutter ---
 
 function languageForFile(fileId: string | null) {
-  if (!fileId) return null
+  if (!fileId) return markdown()
   const lower = fileId.toLowerCase()
+  if (lower.endsWith('.aether')) return markdown()
   if (lower.endsWith('.ts') || lower.endsWith('.tsx') || lower.endsWith('.js') || lower.endsWith('.jsx')) return javascript({ typescript: true })
   if (lower.endsWith('.json')) return json()
   if (lower.endsWith('.md') || lower.endsWith('.markdown')) return markdown()
-  return null
+  return markdown()
 }
 
 const getThemeConfig = (theme: string) => {

@@ -16,6 +16,10 @@ Application web inspirée de Sublime/Cursor, implémentée à partir des spécif
 - Raccourcis : Ctrl/Cmd+K (palette), Ctrl/Cmd+B (sidebar), Ctrl/Cmd+L (IA), Ctrl/Cmd+, (settings)
 - Mission Control : worktree fantôme + diff + Accept/Reject + badge de risque (trivial/review/high)
 - StatusBar : métriques 16ms (Long Tasks) en temps réel
+- Module d'extensions hybride (in-process + sandbox worker)
+- Extension builtin `aether.native` activée au démarrage
+- LSP Aether: mode `embedded` (par défaut), `external` et `auto` (fallback automatique)
+- Langage Aether par défaut pour les nouveaux buffers et les fichiers `.aether`
 
 ## Captures d’écran
 - Ajoutez vos captures dans `docs/screenshots/`

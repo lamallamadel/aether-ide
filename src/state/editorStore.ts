@@ -4,6 +4,7 @@ import { INITIAL_FILES } from '../domain/fileNode'
 import type { ExtractedSymbol, SerializedTree } from '../services/syntax/syntaxTypes'
 import type { PerfMetrics } from '../services/perf/perfMonitor'
 import { readDirectoryRecursive, writeFileContent } from '../services/fileSystem/fileSystemAccess'
+import type { AetherLspMode } from '../lsp/server/aetherEmbeddedServer'
 
 export type AiHealthStatus = 'full' | 'degraded' | 'offline' | 'loading'
 
@@ -36,6 +37,8 @@ export interface EditorState {
   editorTheme: string
   editorFontFamily: string
   ideThemeColor: string
+  lspMode: AetherLspMode
+  externalLspEndpoint: string
   _untitledCounter: number
   syntaxTrees: Record<string, SerializedTree>
   symbolsByFile: Record<string, ExtractedSymbol[]>
@@ -69,6 +72,8 @@ export interface EditorState {
   setEditorTheme: (theme: string) => void
   setEditorFontFamily: (font: string) => void
   setIdeThemeColor: (color: string) => void
+  setLspMode: (mode: AetherLspMode) => void
+  setExternalLspEndpoint: (endpoint: string) => void
   createUntitledFile: () => void
   upsertWorktreeChange: (change: { fileId: string; originalContent: string; proposedContent: string }) => void
   rejectWorktreeChange: (fileId: string) => void
@@ -148,6 +153,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   editorTheme: 'Aether',
   editorFontFamily: 'JetBrains Mono',
   ideThemeColor: 'purple',
+  lspMode: 'embedded',
+  externalLspEndpoint: '',
   _untitledCounter: 1,
   syntaxTrees: {},
   symbolsByFile: {},
@@ -204,16 +211,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setEditorTheme: (theme) => set({ editorTheme: theme }),
   setEditorFontFamily: (font) => set({ editorFontFamily: font }),
   setIdeThemeColor: (color) => set({ ideThemeColor: color }),
+  setLspMode: (mode) => set({ lspMode: mode }),
+  setExternalLspEndpoint: (endpoint) => set({ externalLspEndpoint: endpoint }),
 
   createUntitledFile: () =>
     set((state) => {
       const n = state._untitledCounter
-      const name = `Untitled-${n}.ts`
+      const name = `Untitled-${n}.aether`
       const file: FileNode = {
         id: name,
         name,
         type: 'file',
-        language: 'typescript',
+        language: 'aether',
         parentId: 'src',
         content: '',
       }

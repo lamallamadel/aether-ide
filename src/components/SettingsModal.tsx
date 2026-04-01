@@ -22,6 +22,10 @@ export function SettingsModal() {
     setEditorFontFamily,
     ideThemeColor,
     setIdeThemeColor,
+    lspMode,
+    setLspMode,
+    externalLspEndpoint,
+    setExternalLspEndpoint,
   } = useEditorStore(
     useShallow((s) => ({
       settingsOpen: s.settingsOpen,
@@ -40,6 +44,10 @@ export function SettingsModal() {
       setEditorFontFamily: s.setEditorFontFamily,
       ideThemeColor: s.ideThemeColor,
       setIdeThemeColor: s.setIdeThemeColor,
+      lspMode: s.lspMode,
+      setLspMode: s.setLspMode,
+      externalLspEndpoint: s.externalLspEndpoint,
+      setExternalLspEndpoint: s.setExternalLspEndpoint,
     }))
   )
 
@@ -299,6 +307,43 @@ export function SettingsModal() {
                   Local
                 </button>
               </div>
+            </div>
+          </div>
+
+          <div className="h-px bg-white/5" />
+
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Language Server (Aether)</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/5 rounded text-gray-400">
+                  <Shield size={16} />
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-gray-200">LSP Mode</div>
+                  <div className="text-xs text-gray-500">embedded, external, or auto fallback.</div>
+                </div>
+              </div>
+              <ThemedSelect
+                ariaLabel="Select LSP mode"
+                value={lspMode}
+                onChange={(value) => setLspMode(value as 'embedded' | 'external' | 'auto')}
+                options={[
+                  { value: 'embedded', label: 'Embedded' },
+                  { value: 'external', label: 'External' },
+                  { value: 'auto', label: 'Auto' },
+                ]}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm text-gray-200 min-w-[140px]">External endpoint</div>
+              <input
+                aria-label="External LSP endpoint"
+                value={externalLspEndpoint}
+                onChange={(e) => setExternalLspEndpoint(e.target.value)}
+                placeholder="http://localhost:3001/lsp"
+                className="w-full bg-[#111111] border border-white/10 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none"
+              />
             </div>
           </div>
 

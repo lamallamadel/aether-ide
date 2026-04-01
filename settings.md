@@ -83,11 +83,18 @@ These values behave like **feature flags and default preferences**. They are int
 | `globalSearchOpen` | `boolean` | `false` | Opens/closes Global Search modal | `true \| false` | `true` |
 | `missionControlOpen` | `boolean` | `false` | Opens/closes Mission Control modal | `true \| false` | `true` |
 | `worktreeChanges` | `Record<string, Change>` | `{}` | Pending “worktree” changes (Mission Control) | Keys are `fileId` | `{ "App.tsx": {...} }` |
+| `lspMode` | `'embedded' \| 'external' \| 'auto'` | `'embedded'` | Runtime mode for Aether LSP | embedded/external/auto | `'auto'` |
+| `externalLspEndpoint` | `string` | `""` | HTTP endpoint for external Aether LSP bridge | URL string | `"http://localhost:3001/lsp"` |
 
 `Change` structure (stored in `worktreeChanges`):
 - `fileId`: `string`
 - `originalContent`: `string`
 - `proposedContent`: `string`
+
+### Aether editor defaults
+- New untitled files are created as `Untitled-<n>.aether`.
+- File language resolution defaults to `aether` for extensionless names.
+- Files ending in `.aether` are mapped to the Aether language pipeline.
 
 ### 4.2 Global Search settings (indexing & performance)
 Locations:

@@ -86,7 +86,7 @@ describe('MenuBar', () => {
     await user.click(screen.getByRole('button', { name: 'File' }))
     await user.click(screen.getByRole('menuitem', { name: 'New File' }))
 
-    expect(useEditorStore.getState().activeFileId).toMatch(/^Untitled-\d+\.ts$/)
+    expect(useEditorStore.getState().activeFileId).toMatch(/^Untitled-\d+\.aether$/)
   })
 
   it('File > Open File opens command palette', async () => {
