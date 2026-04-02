@@ -2,6 +2,7 @@
  * Processus principal Electron — charge l’UI Vite (dev) ou dist/index.html (prod).
  */
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -75,6 +76,32 @@ function registerIpcHandlers() {
 
   ipcMain.handle('aether:read-text-relative', async (_event, rootPath, relativePath) => {
     return readTextUnderRoot(rootPath, relativePath)
+  })
+
+  ipcMain.handle('aether:run-npm-script', async (event, rootPath, script) => {
+    if (typeof rootPath !== 'string' || typeof script !== 'string' || !rootPath.trim() || !script.trim()) {
+      throw new Error('Invalid workspace or script name')
+    }
+    const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+    const child = spawn(npm, ['run', script], {
+      cwd: rootPath,
+      shell: process.platform === 'win32',
+      env: process.env,
+    })
+    const sender = event.sender
+    child.stdout?.on('data', (d) => {
+      sender.send('aether:terminal-stream', { text: d.toString(), stream: 'stdout' })
+    })
+    child.stderr?.on('data', (d) => {
+      sender.send('aether:terminal-stream', { text: d.toString(), stream: 'stderr' })
+    })
+    child.on('close', (code) => {
+      sender.send('aether:terminal-stream', { text: `\r\n[process exited with code ${code}]\r\n`, stream: 'exit', code })
+    })
+    child.on('error', (err) => {
+      sender.send('aether:terminal-stream', { text: `${err.message}\r\n`, stream: 'error' })
+    })
+    return { ok: true, message: `Started: npm run ${script}` }
   })
 }
 

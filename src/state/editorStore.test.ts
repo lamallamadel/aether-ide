@@ -61,11 +61,17 @@ beforeEach(() => {
     aiPanelVisible: true,
     commandPaletteOpen: false,
     globalSearchOpen: false,
+    goToSymbolOpen: false,
+    goToSymbolFilter: 'all',
     settingsOpen: false,
     settingsCategory: 'editor',
     missionControlOpen: false,
     terminalPanelOpen: false,
     terminalPanelHeight: 200,
+    terminalDock: 'workspace',
+    editorSplit: 'none',
+    activeEditorPane: 'primary',
+    editorSplitRatio: 0.5,
     aiMode: 'cloud',
     perf: { longTaskCount: 0, longTaskMaxMs: 0, slowFrameCount: 0, slowFrameMaxMs: 0 },
     worktreeChanges: {},
@@ -86,6 +92,9 @@ beforeEach(() => {
     _untitledCounter: 1,
     syntaxTrees: {},
     symbolsByFile: {},
+    editorCommandRunnerPrimary: null,
+    editorCommandRunnerSecondary: null,
+    aiQuickFixContext: null,
   })
 })
 
@@ -306,11 +315,26 @@ describe('editorStore', () => {
   it('executeEditorCommand délègue au runner quand enregistré', () => {
     const { setEditorCommandRunner, executeEditorCommand } = useEditorStore.getState()
     const mockRunner = vi.fn().mockReturnValue(true)
-    setEditorCommandRunner(mockRunner)
+    setEditorCommandRunner('primary', mockRunner)
     expect(executeEditorCommand('undo')).toBe(true)
     expect(mockRunner).toHaveBeenCalledWith('undo')
-    setEditorCommandRunner(null)
+    setEditorCommandRunner('primary', null)
     expect(executeEditorCommand('redo')).toBe(false)
+  })
+
+  it('executeEditorCommand utilise le volet secondaire quand actif', () => {
+    const primary = vi.fn().mockReturnValue(true)
+    const secondary = vi.fn().mockReturnValue(true)
+    useEditorStore.setState({ activeEditorPane: 'secondary' })
+    const { setEditorCommandRunner, executeEditorCommand } = useEditorStore.getState()
+    setEditorCommandRunner('primary', primary)
+    setEditorCommandRunner('secondary', secondary)
+    executeEditorCommand('copy')
+    expect(secondary).toHaveBeenCalledWith('copy')
+    expect(primary).not.toHaveBeenCalled()
+    setEditorCommandRunner('primary', null)
+    setEditorCommandRunner('secondary', null)
+    useEditorStore.setState({ activeEditorPane: 'primary' })
   })
 
   it('loadProjectFromDirectory charge les fichiers et ouvre le premier', async () => {

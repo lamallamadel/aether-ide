@@ -40,6 +40,11 @@ export function MenuBar() {
     saveFileAsInWorkspace,
     hasFileHandle,
     toggleTerminalPanel,
+    setEditorSplit,
+    editorSplit,
+    setTerminalDock,
+    terminalDock,
+    workspaceRootPath,
   } = useEditorStore(
     useShallow((s) => ({
       activeFileId: s.activeFileId,
@@ -68,6 +73,11 @@ export function MenuBar() {
       saveFileAsInWorkspace: s.saveFileAsInWorkspace,
       hasFileHandle: s.hasFileHandle,
       toggleTerminalPanel: s.toggleTerminalPanel,
+      setEditorSplit: s.setEditorSplit,
+      editorSplit: s.editorSplit,
+      setTerminalDock: s.setTerminalDock,
+      terminalDock: s.terminalDock,
+      workspaceRootPath: s.workspaceRootPath,
     }))
   )
 
@@ -197,16 +207,59 @@ export function MenuBar() {
         { kind: 'action', id: 'view-word-wrap', label: 'Toggle Word Wrap', action: () => toggleEditorWordWrap(), checked: editorWordWrap },
         { kind: 'action', id: 'view-minimap', label: 'Toggle Minimap', action: () => toggleEditorMinimap(), checked: editorMinimap },
         { kind: 'separator', id: 'view-sep-3' },
+        { kind: 'action', id: 'view-split-right', label: 'Split Editor Right', action: () => setEditorSplit('columns') },
+        { kind: 'action', id: 'view-split-down', label: 'Split Editor Down', action: () => setEditorSplit('rows') },
+        {
+          kind: 'action',
+          id: 'view-split-join',
+          label: 'Join Editor',
+          action: () => setEditorSplit('none'),
+          checked: editorSplit === 'none',
+        },
+        { kind: 'separator', id: 'view-sep-split' },
         { kind: 'action', id: 'view-sidebar', label: 'Toggle Sidebar', action: () => toggleSidebar() },
         { kind: 'action', id: 'view-ai', label: 'Toggle AI Panel', action: () => toggleAiPanel() },
+        {
+          kind: 'action',
+          id: 'view-term-dock',
+          label: terminalDock === 'editor' ? 'Terminal: dock to workspace bar' : 'Terminal: dock under editor',
+          action: () => {
+            setTerminalDock(terminalDock === 'editor' ? 'workspace' : 'editor')
+            announce(terminalDock === 'editor' ? 'Terminal dock: workspace' : 'Terminal dock: under editor')
+          },
+        },
         { kind: 'action', id: 'view-settings', label: 'Open Settings', action: () => openSettings({ open: true }) },
       ],
       Go: [
         { kind: 'action', id: 'go-file', label: 'Go to File...', action: () => setCommandPaletteOpen(true) },
-        { kind: 'action', id: 'go-symbol', label: 'Go to Symbol...', action: () => setGoToSymbolOpen(true) },
+        { kind: 'action', id: 'go-symbol', label: 'Go to Symbol...', action: () => setGoToSymbolOpen(true, 'all') },
+        { kind: 'action', id: 'go-class', label: 'Go to Class...', action: () => setGoToSymbolOpen(true, 'class') },
       ],
       Run: [
-        { kind: 'action', id: 'run-placeholder', label: '(Debug/Run — coming soon)', action: () => announce('Debugging and Run not yet implemented') },
+        {
+          kind: 'action',
+          id: 'run-npm-dev',
+          label: 'Run npm run dev (desktop)',
+          action: () => {
+            const desk = getWorkspaceShellKind() === 'electron'
+            const root = workspaceRootPath
+            if (!desk) {
+              announce('Packaged npm run requires Electron')
+              return
+            }
+            if (!root) {
+              announce('Open a workspace folder first')
+              return
+            }
+            const bridge = typeof window !== 'undefined' ? window.aetherDesktop : undefined
+            if (bridge?.runNpmScript) {
+              void bridge.runNpmScript(root, 'dev').then((r) => announce(r?.message ?? 'Started'))
+            } else {
+              announce('Run bridge unavailable')
+            }
+          },
+        },
+        { kind: 'action', id: 'run-placeholder', label: '(More run targets — extend scripts)', action: () => announce('Configure npm scripts in package.json') },
       ],
       Terminal: [
         { kind: 'action', id: 'term-new', label: 'New Terminal', action: () => toggleTerminalPanel() },
@@ -251,6 +304,11 @@ export function MenuBar() {
       toggleEditorMinimap,
       executeEditorCommand,
       toggleTerminalPanel,
+      setEditorSplit,
+      editorSplit,
+      setTerminalDock,
+      terminalDock,
+      workspaceRootPath,
     ]
   )
 

@@ -19,9 +19,15 @@ beforeEach(() => {
     aiPanelVisible: true,
     commandPaletteOpen: false,
     globalSearchOpen: false,
+    goToSymbolOpen: false,
+    goToSymbolFilter: 'all',
     settingsOpen: false,
     missionControlOpen: false,
     terminalPanelOpen: false,
+    terminalDock: 'workspace',
+    editorSplit: 'none',
+    activeEditorPane: 'primary',
+    aiQuickFixContext: null,
     aiMode: 'cloud',
       perf: { longTaskCount: 0, longTaskMaxMs: 0, slowFrameCount: 0, slowFrameMaxMs: 0 },
       worktreeChanges: {},
@@ -41,7 +47,7 @@ describe('App', () => {
     render(<App />)
 
     await user.click(screen.getByText('README.md'))
-    expect(screen.getByText('readme.md')).toBeInTheDocument()
+    expect(screen.getAllByText('readme.md').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByTestId('code-editor').textContent).toMatch(/# Aether Code/i)
   }, 15000)
 

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, FileText, Code2, Braces, Box, Image as ImageIcon } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileText, Code2, Braces, Box, Image as ImageIcon, ListTree } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import type { FileNode, FileType } from '../domain/fileNode'
 import { useEditorStore } from '../state/editorStore'
@@ -77,16 +77,65 @@ function FileTreeItem({ node, level = 0 }: { node: FileNode; level?: number }) {
   )
 }
 
+function OutlinePanel() {
+  const { activeFileId, symbolsByFile, openFile } = useEditorStore(
+    useShallow((s) => ({
+      activeFileId: s.activeFileId,
+      symbolsByFile: s.symbolsByFile,
+      openFile: s.openFile,
+    }))
+  )
+  const symbols = activeFileId ? symbolsByFile[activeFileId] ?? [] : []
+  if (!activeFileId || symbols.length === 0) return null
+
+  const sorted = [...symbols].filter((s) => s.name?.trim()).sort((a, b) => a.startIndex - b.startIndex)
+
+  return (
+    <div className="border-t border-white/5 flex flex-col min-h-0 max-h-[40%] shrink">
+      <div className="h-8 flex items-center px-3 text-[10px] font-bold tracking-wider text-gray-500 uppercase border-b border-white/5 shrink-0">
+        <ListTree size={12} className="mr-1.5 opacity-70" />
+        Outline
+      </div>
+      <div className="overflow-y-auto py-1 custom-scrollbar text-xs">
+        {sorted.map((s) => (
+          <button
+            key={`${s.kind}-${s.name}-${s.startIndex}`}
+            type="button"
+            className="w-full text-left px-3 py-1 text-gray-400 hover:text-white hover:bg-white/5 truncate"
+            title={`${s.name} (${s.kind})`}
+            onClick={() => {
+              openFile(activeFileId)
+              window.dispatchEvent(
+                new CustomEvent('aether-goto-symbol', {
+                  detail: { fileId: activeFileId, startIndex: s.startIndex },
+                })
+              )
+            }}
+          >
+            <span className="text-gray-200">{s.name}</span>
+            <span className="ml-2 text-[10px] text-gray-600">{s.kind}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function Sidebar() {
   const { files, sidebarVisible } = useEditorStore(useShallow((s) => ({ files: s.files, sidebarVisible: s.sidebarVisible })))
   if (!sidebarVisible) return null
 
   return (
-    <div className="w-64 h-full bg-[#111111] border-r border-white/5 flex flex-col shrink-0">
-      <div className="h-9 flex items-center px-4 text-xs font-bold tracking-wider text-gray-500 uppercase border-b border-white/5">
+    <div className="w-64 h-full bg-[#111111] border-r border-white/5 flex flex-col shrink-0 min-h-0">
+      <div className="h-9 flex items-center px-4 text-xs font-bold tracking-wider text-gray-500 uppercase border-b border-white/5 shrink-0">
         Explorer
       </div>
-      <div className="flex-1 overflow-y-auto py-2 custom-scrollbar">{files.map((node) => <FileTreeItem key={node.id} node={node} />)}</div>
+      <div className="flex-1 min-h-0 overflow-y-auto py-2 custom-scrollbar">
+        {files.map((node) => (
+          <FileTreeItem key={node.id} node={node} />
+        ))}
+      </div>
+      <OutlinePanel />
     </div>
   )
 }

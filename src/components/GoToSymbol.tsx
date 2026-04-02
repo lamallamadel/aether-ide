@@ -13,15 +13,17 @@ const lineFromOffset = (content: string, offset: number): number =>
   content.slice(0, Math.min(offset, content.length)).split('\n').length
 
 export function GoToSymbol() {
-  const { goToSymbolOpen, setGoToSymbolOpen, activeFileId, symbolsByFile, getFileContent } = useEditorStore(
-    useShallow((s) => ({
-      goToSymbolOpen: s.goToSymbolOpen,
-      setGoToSymbolOpen: s.setGoToSymbolOpen,
-      activeFileId: s.activeFileId,
-      symbolsByFile: s.symbolsByFile,
-      getFileContent: s.getFileContent,
-    }))
-  )
+  const { goToSymbolOpen, setGoToSymbolOpen, activeFileId, symbolsByFile, getFileContent, goToSymbolFilter } =
+    useEditorStore(
+      useShallow((s) => ({
+        goToSymbolOpen: s.goToSymbolOpen,
+        setGoToSymbolOpen: s.setGoToSymbolOpen,
+        activeFileId: s.activeFileId,
+        symbolsByFile: s.symbolsByFile,
+        getFileContent: s.getFileContent,
+        goToSymbolFilter: s.goToSymbolFilter,
+      }))
+    )
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -29,10 +31,12 @@ export function GoToSymbol() {
   const currentSymbols = useMemo<SymbolRow[]>(() => {
     if (!activeFileId) return []
     const fileSymbols = symbolsByFile[activeFileId] ?? []
+    const classKinds = new Set(['class', 'interface', 'type', 'enum'])
     return fileSymbols
       .filter((s) => s.name && s.name.trim().length > 0)
+      .filter((s) => (goToSymbolFilter === 'class' ? classKinds.has(s.kind) : true))
       .map((s) => ({ name: s.name, kind: s.kind, startIndex: s.startIndex }))
-  }, [activeFileId, symbolsByFile])
+  }, [activeFileId, symbolsByFile, goToSymbolFilter])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -73,11 +77,13 @@ export function GoToSymbol() {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Go to Symbol"
+        aria-label={goToSymbolFilter === 'class' ? 'Go to Class' : 'Go to Symbol'}
         className="w-[640px] max-w-[95vw] bg-[#1a1a1a] rounded-xl border border-white/10 overflow-hidden"
       >
         <div className="h-10 flex items-center justify-between px-3 border-b border-white/10 bg-[#111111]">
-          <div className="text-xs uppercase tracking-wider text-gray-400">Go to Symbol</div>
+          <div className="text-xs uppercase tracking-wider text-gray-400">
+            {goToSymbolFilter === 'class' ? 'Go to Class' : 'Go to Symbol'}
+          </div>
           <button type="button" className="text-gray-500 hover:text-white" onClick={() => setGoToSymbolOpen(false)}>
             <X size={14} />
           </button>
@@ -112,7 +118,7 @@ export function GoToSymbol() {
                   if (item) chooseSymbol(item)
                 }
               }}
-              placeholder="Type symbol name..."
+              placeholder={goToSymbolFilter === 'class' ? 'Filter classes…' : 'Type symbol name…'}
               className="w-full h-9 bg-transparent text-sm text-white focus:outline-none"
             />
           </div>

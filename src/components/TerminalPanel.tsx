@@ -31,7 +31,7 @@ function getRootName(files: FileNode[]): string {
   return root?.name ?? '~'
 }
 
-export function TerminalPanel() {
+export function TerminalPanel({ embedded = false }: { embedded?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { terminalPanelOpen, setTerminalPanelOpen, terminalPanelHeight } = useEditorStore(
     useShallow((s) => ({
@@ -121,16 +121,27 @@ export function TerminalPanel() {
     resizeObserver.observe(el)
     requestAnimationFrame(() => fitAddon.fit())
 
+    let unsubStream: (() => void) | undefined
+    if (typeof window !== 'undefined' && window.aetherDesktop?.onTerminalStream) {
+      unsubStream = window.aetherDesktop.onTerminalStream((data) => {
+        if (data?.text) terminal.write(data.text)
+      })
+    }
+
     return () => {
+      unsubStream?.()
       resizeObserver.disconnect()
       terminal.dispose()
     }
-  }, [terminalPanelOpen])
+  }, [terminalPanelOpen, embedded])
 
   if (!terminalPanelOpen) return null
 
   return (
-    <div className="flex flex-col border-t border-white/5 bg-[#0a0a0a] shrink-0" style={{ height: terminalPanelHeight }}>
+    <div
+      className={`flex flex-col bg-[#0a0a0a] shrink-0 min-h-0 ${embedded ? 'h-full border-t border-white/10' : 'border-t border-white/5'}`}
+      style={embedded ? undefined : { height: terminalPanelHeight }}
+    >
       <div className="h-8 flex items-center justify-between px-2 border-b border-white/5 bg-[#111111] shrink-0">
         <span className="text-xs font-bold tracking-wider text-gray-400 uppercase">Terminal</span>
         <button

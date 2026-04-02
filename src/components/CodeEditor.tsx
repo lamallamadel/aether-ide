@@ -7,11 +7,13 @@ import {
   defaultKeymap,
   indentWithTab,
 } from '@codemirror/commands'
+import { autocompletion, completionKeymap, type CompletionContext } from '@codemirror/autocomplete'
 import { highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search'
 import { keymap } from '@codemirror/view'
 import { Compartment, EditorState, Facet } from '@codemirror/state'
 import { EditorView, drawSelection, highlightActiveLine, highlightSpecialChars, lineNumbers } from '@codemirror/view'
 import { showMinimap } from '@replit/codemirror-minimap'
+import type { EditorMetrics } from './EditorPositionBar'
 import type { EditorCommand } from '../state/editorStore'
 import { useEditorStore } from '../state/editorStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -25,8 +27,28 @@ import type { ExtractedSymbol } from '../services/syntax/syntaxTypes'
 import type { SerializedNode, SerializedTree } from '../services/syntax/syntaxTypes'
 
 // --- Syntax Highlighting ---
-import { syntaxHighlighting, HighlightStyle } from '@codemirror/language'
+import { bracketMatching, foldGutter, foldKeymap, syntaxHighlighting, HighlightStyle } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
+
+/** Complétions mock type Cursor / JetBrains (mots-clés + snippets courants). */
+function aetherInlineCompletions(context: CompletionContext) {
+  const word = context.matchBefore(/[\w.]*/)
+  if (!word?.text && !context.explicit) return null
+  const from = word?.from ?? context.pos
+  return {
+    from,
+    options: [
+      { label: 'function', type: 'keyword' },
+      { label: 'const', type: 'keyword' },
+      { label: 'return', type: 'keyword' },
+      { label: 'async', type: 'keyword' },
+      { label: 'await', type: 'keyword' },
+      { label: 'useState', type: 'function', detail: 'React' },
+      { label: 'useEffect', type: 'function', detail: 'React' },
+      { label: 'console.log', type: 'function' },
+    ],
+  }
+}
 
 const aetherHighlightStyle = HighlightStyle.define([
   { tag: tags.keyword, color: '#c084fc' }, // purple-400
@@ -51,6 +73,10 @@ const aetherHighlightStyle = HighlightStyle.define([
 
 const aiGutterDataFacet = Facet.define<Record<number, 'warning' | 'suggestion'>, Record<number, 'warning' | 'suggestion'>>({
   combine: (values) => values[0] ?? {},
+})
+
+const aetherFileIdFacet = Facet.define<string | null, string | null>({
+  combine: (values) => values.find((v) => v != null) ?? null,
 })
 
 const lineFromOffset = (content: string, offset: number): number =>
@@ -86,24 +112,32 @@ const buildGutterData = (
 }
 
 class AIGutterMarker extends GutterMarker {
-  readonly type: 'warning' | 'suggestion'
+  kind: 'warning' | 'suggestion'
+  lineNumber: number
+  fileId: string | null
 
-  constructor(type: 'warning' | 'suggestion') {
+  constructor(kind: 'warning' | 'suggestion', lineNumber: number, fileId: string | null) {
     super()
-    this.type = type
+    this.kind = kind
+    this.lineNumber = lineNumber
+    this.fileId = fileId
   }
 
   toDOM() {
     const span = document.createElement('span')
     span.className = 'flex items-center justify-center w-full h-full cursor-pointer hover:bg-white/10 rounded transition-colors'
-    if (this.type === 'warning') {
+    if (this.kind === 'warning') {
       span.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgb(234 179 8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`
     } else {
       span.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgb(168 85 247)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`
     }
     span.onclick = (e) => {
       e.stopPropagation()
-      window.dispatchEvent(new CustomEvent('aether-ai-click', { detail: { type: this.type } }))
+      window.dispatchEvent(
+        new CustomEvent('aether-ai-click', {
+          detail: { kind: this.kind, line: this.lineNumber, fileId: this.fileId },
+        })
+      )
     }
     return span
   }
@@ -115,9 +149,10 @@ const aiGutter = gutter({
     const data = view.state.facet(aiGutterDataFacet)
     const lineNum = view.state.doc.lineAt(line.from).number
     const marker = data[lineNum]
-    return marker ? new AIGutterMarker(marker) : null
+    const fileId = view.state.facet(aetherFileIdFacet)
+    return marker ? new AIGutterMarker(marker, lineNum, fileId) : null
   },
-  initialSpacer: () => new AIGutterMarker('suggestion'),
+  initialSpacer: () => new AIGutterMarker('suggestion', 0, null),
 })
 
 // --- End AI Gutter ---
@@ -196,8 +231,14 @@ export function CodeEditor(props: {
   theme: string
   wordWrap: boolean
   minimap?: boolean
+  /** Rappel ligne / colonne / taille de sélection (barre type IDE). */
+  onEditorMetrics?: (m: EditorMetrics) => void
+  /** Volet pour split éditeur + commandes ciblées. */
+  paneId?: 'primary' | 'secondary'
 }) {
-  const { fileId, value, onChange, fontSizePx, fontFamily, theme, wordWrap, minimap = false } = props
+  const { fileId, value, onChange, fontSizePx, fontFamily, theme, wordWrap, minimap = false, onEditorMetrics, paneId = 'primary' } = props
+  const onEditorMetricsRef = useRef(onEditorMetrics)
+  onEditorMetricsRef.current = onEditorMetrics
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const lastValueRef = useRef<string>(value)
@@ -208,6 +249,7 @@ export function CodeEditor(props: {
   const themeCompartment = useRef(new Compartment()).current
   const minimapCompartment = useRef(new Compartment()).current
   const aiGutterDataCompartment = useRef(new Compartment()).current
+  const fileIdFacetCompartment = useRef(new Compartment()).current
 
   const symbols = useEditorStore(useShallow((s) => s.symbolsByFile[fileId ?? ''] ?? EMPTY_SYMBOLS))
   const syntaxTree = useEditorStore(useShallow((s) => s.syntaxTrees[fileId ?? '']))
@@ -245,6 +287,8 @@ export function CodeEditor(props: {
         },
         '.cm-activeLineGutter': { backgroundColor: 'rgba(255,255,255,0.04)' },
         '.cm-activeLine': { backgroundColor: 'rgba(255,255,255,0.03)' },
+        '.cm-foldGutter': { minWidth: '14px' },
+        '.cm-foldPlaceholder': { background: 'rgba(255,255,255,0.06)', border: 'none' },
         '.cm-selectionBackground': { backgroundColor: themeConfig.selection },
         '&.cm-focused .cm-selectionBackground': { backgroundColor: themeConfig.selection },
         '&.cm-focused': { outline: 'none' },
@@ -261,15 +305,31 @@ export function CodeEditor(props: {
       doc: value,
       extensions: [
         lineNumbers(),
+        foldGutter(),
         highlightSpecialChars(),
         drawSelection(),
         highlightActiveLine(),
+        bracketMatching(),
         history(),
-        keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+        autocompletion({ override: [aetherInlineCompletions] }),
+        keymap.of([...completionKeymap, indentWithTab, ...foldKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
         search(),
         highlightSelectionMatches({ highlightWordAroundCursor: true }),
-        aiGutter, // Add the AI Gutter
+        aiGutter,
+        fileIdFacetCompartment.of(aetherFileIdFacet.of(fileId)),
         EditorView.updateListener.of((u) => {
+          if (u.selectionSet || u.docChanged) {
+            const cb = onEditorMetricsRef.current
+            if (cb) {
+              const view = u.view
+              const sel = view.state.selection.main
+              const line = view.state.doc.lineAt(sel.head)
+              const lineNum = line.number
+              const col = sel.head - line.from + 1
+              const len = sel.empty ? 0 : Math.abs(sel.to - sel.from)
+              cb({ line: lineNum, column: col, selectionLength: len })
+            }
+          }
           if (!u.docChanged) return
           const next = u.state.doc.toString()
           lastValueRef.current = next
@@ -296,6 +356,18 @@ export function CodeEditor(props: {
     const view = new EditorView({ state, parent: hostRef.current })
     viewRef.current = view
 
+    queueMicrotask(() => {
+      const cb = onEditorMetricsRef.current
+      if (!cb) return
+      const sel = view.state.selection.main
+      const line = view.state.doc.lineAt(sel.head)
+      cb({
+        line: line.number,
+        column: sel.head - line.from + 1,
+        selectionLength: sel.empty ? 0 : Math.abs(sel.to - sel.from),
+      })
+    })
+
     const runner = (cmd: EditorCommand): boolean => {
       try {
         const target = { state: view.state, dispatch: (tr: import('@codemirror/state').Transaction) => view.dispatch(tr) }
@@ -321,16 +393,22 @@ export function CodeEditor(props: {
         return false
       }
     }
-    const tid = window.setTimeout(() => useEditorStore.getState().setEditorCommandRunner(runner), 0)
+    const tid = window.setTimeout(() => useEditorStore.getState().setEditorCommandRunner(paneId, runner), 0)
+
+    const onFocusIn = () => {
+      useEditorStore.getState().setActiveEditorPane(paneId)
+    }
+    view.dom.addEventListener('focusin', onFocusIn)
 
     return () => {
+      view.dom.removeEventListener('focusin', onFocusIn)
       window.clearTimeout(tid)
-      useEditorStore.getState().setEditorCommandRunner(null)
+      useEditorStore.getState().setEditorCommandRunner(paneId, null)
       if (debounceRef.current) window.clearTimeout(debounceRef.current)
       view.destroy()
       viewRef.current = null
     }
-  }, [baseTheme, language, onChange, wordWrap])
+  }, [baseTheme, language, onChange, wordWrap, paneId])
 
   useEffect(() => {
     const view = viewRef.current
@@ -395,6 +473,12 @@ export function CodeEditor(props: {
     if (!view) return
     view.dispatch({ effects: aiGutterDataCompartment.reconfigure(aiGutterDataFacet.of(gutterData)) })
   }, [gutterData])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({ effects: fileIdFacetCompartment.reconfigure(aetherFileIdFacet.of(fileId)) })
+  }, [fileId])
 
   useEffect(() => {
     const onGotoSymbol = (event: Event) => {

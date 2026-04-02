@@ -16,4 +16,10 @@ contextBridge.exposeInMainWorld('aetherDesktop', {
     ipcRenderer.invoke('aether:write-file-relative', rootPath, relativePath, content),
   readTextRelative: (rootPath, relativePath) =>
     ipcRenderer.invoke('aether:read-text-relative', rootPath, relativePath),
+  runNpmScript: (rootPath, script) => ipcRenderer.invoke('aether:run-npm-script', rootPath, script),
+  onTerminalStream: (handler) => {
+    const fn = (_event, data) => handler(data)
+    ipcRenderer.on('aether:terminal-stream', fn)
+    return () => ipcRenderer.removeListener('aether:terminal-stream', fn)
+  },
 })

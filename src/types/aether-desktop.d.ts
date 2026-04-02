@@ -9,6 +9,8 @@ export interface AetherDesktopBridge {
   loadWorkspace: (rootPath: string) => Promise<{ files: FileNode[]; rootPath: string; workspaceLabel: string }>
   writeFileRelative: (rootPath: string, relativePath: string, content: string) => Promise<void>
   readTextRelative: (rootPath: string, relativePath: string) => Promise<string | null>
+  runNpmScript: (rootPath: string, script: string) => Promise<{ ok?: boolean; message?: string }>
+  onTerminalStream: (handler: (data: { text: string; stream?: string; code?: number }) => void) => () => void
 }
 
 declare global {

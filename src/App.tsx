@@ -26,11 +26,12 @@ import { extensionHost } from './extensions/host'
 import { loadRuntimeEnvironment } from './config/environment'
 
 export default function App() {
-  const { files, activeFileId, terminalPanelOpen, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, openSettings, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError, toggleTerminalPanel, lspMode, externalLspEndpoint, setRuntimeEnvironment, hasFileHandle, saveFileToDisk } =
+  const { files, activeFileId, terminalPanelOpen, terminalDock, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, openSettings, aiMode, setPerf, setAiHealth, ideThemeColor, setIndexingError, toggleTerminalPanel, lspMode, externalLspEndpoint, setRuntimeEnvironment, hasFileHandle, saveFileToDisk } =
     useEditorStore(useShallow((s) => ({
       files: s.files,
       activeFileId: s.activeFileId,
       terminalPanelOpen: s.terminalPanelOpen,
+      terminalDock: s.terminalDock,
       setCommandPaletteOpen: s.setCommandPaletteOpen,
       setGoToSymbolOpen: s.setGoToSymbolOpen,
       toggleSidebar: s.toggleSidebar,
@@ -40,7 +41,6 @@ export default function App() {
       setPerf: s.setPerf,
       setAiHealth: s.setAiHealth,
       ideThemeColor: s.ideThemeColor,
-      setMissionControlOpen: s.setMissionControlOpen,
       setIndexingError: s.setIndexingError,
       toggleTerminalPanel: s.toggleTerminalPanel,
       lspMode: s.lspMode,
@@ -51,14 +51,21 @@ export default function App() {
     })))
 
   useEffect(() => {
-    const onAIClick = (e: any) => {
-        // e.detail contains { type: 'warning' | 'suggestion', line: number }
-        console.log('AI Gutter Clicked:', e.detail)
-        setMissionControlOpen(true)
+    const onAIClick = (e: Event) => {
+      const ce = e as CustomEvent<{ kind?: string; line?: number; fileId?: string | null }>
+      const d = ce.detail
+      if (d?.line != null && d?.kind) {
+        const st = useEditorStore.getState()
+        st.setAiQuickFixContext({
+          fileId: d.fileId ?? st.activeFileId ?? '',
+          line: d.line,
+          kind: d.kind as 'warning' | 'suggestion',
+        })
+      }
     }
     window.addEventListener('aether-ai-click', onAIClick)
     return () => window.removeEventListener('aether-ai-click', onAIClick)
-  }, [setMissionControlOpen])
+  }, [])
 
   useEffect(() => {
     registerBuiltinExtensions().catch((error) => console.error('Failed to initialize builtin extensions', error))
@@ -210,7 +217,7 @@ export default function App() {
           <EditorArea />
           <AIChatPanel />
         </div>
-        {terminalPanelOpen && <TerminalPanel />}
+        {terminalPanelOpen && terminalDock === 'workspace' && <TerminalPanel />}
       </div>
       <StatusBar />
       <CommandPalette />

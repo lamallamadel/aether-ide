@@ -21,6 +21,12 @@ export type AiHealthStatus = 'full' | 'degraded' | 'offline' | 'loading'
 /** Commands exécutables depuis le MenuBar vers CodeMirror */
 export type EditorCommand = 'undo' | 'redo' | 'copy' | 'cut' | 'paste' | 'selectAll' | 'findInFile'
 
+/** Split éditeur : colonnes (côte à côte) ou lignes (empilé). */
+export type EditorSplitMode = 'none' | 'columns' | 'rows'
+
+/** Terminal : barre pleine largeur (historique) ou ancré sous la colonne éditeur. */
+export type TerminalDockMode = 'workspace' | 'editor'
+
 export interface EditorState {
   files: FileNode[]
   fileHandles: Record<string, FileSystemFileHandle>
@@ -34,11 +40,19 @@ export interface EditorState {
   commandPaletteOpen: boolean
   globalSearchOpen: boolean
   goToSymbolOpen: boolean
+  /** Filtre symboles dans Go to Symbol : tout ou classes uniquement. */
+  goToSymbolFilter: 'all' | 'class'
   settingsOpen: boolean
   settingsCategory: SettingsCategory
   missionControlOpen: boolean
   terminalPanelOpen: boolean
   terminalPanelHeight: number
+  terminalDock: TerminalDockMode
+  editorSplit: EditorSplitMode
+  /** Volet actif pour les commandes Edit et la barre de position. */
+  activeEditorPane: 'primary' | 'secondary'
+  /** Fraction [0.2–0.8] : largeur (columns) ou hauteur (rows) du volet primaire. */
+  editorSplitRatio: number
   aiMode: 'cloud' | 'local'
   aiHealth: AiHealthStatus
   indexingError: string | null
@@ -72,7 +86,11 @@ export interface EditorState {
   toggleAiPanel: () => void
   setCommandPaletteOpen: (open: boolean) => void
   setGlobalSearchOpen: (open: boolean) => void
-  setGoToSymbolOpen: (open: boolean) => void
+  setGoToSymbolOpen: (open: boolean, filter?: 'all' | 'class') => void
+  setEditorSplit: (mode: EditorSplitMode) => void
+  setActiveEditorPane: (pane: 'primary' | 'secondary') => void
+  setEditorSplitRatio: (ratio: number) => void
+  setTerminalDock: (dock: TerminalDockMode) => void
   setSettingsOpen: (open: boolean) => void
   setSettingsCategory: (category: SettingsCategory) => void
   openSettings: (params?: { open: boolean; category?: SettingsCategory }) => void
@@ -112,8 +130,12 @@ export interface EditorState {
   /** Exécute une commande sur l'éditeur actif. Retourne false si aucune vue ou commande non dispo. */
   executeEditorCommand: (cmd: EditorCommand) => boolean
   /** Enregistré par CodeEditor au mount, null au unmount. */
-  setEditorCommandRunner: (runner: ((cmd: EditorCommand) => boolean) | null) => void
-  editorCommandRunner: ((cmd: EditorCommand) => boolean) | null
+  setEditorCommandRunner: (pane: 'primary' | 'secondary', runner: ((cmd: EditorCommand) => boolean) | null) => void
+  editorCommandRunnerPrimary: ((cmd: EditorCommand) => boolean) | null
+  editorCommandRunnerSecondary: ((cmd: EditorCommand) => boolean) | null
+  /** Quick fix / gutter IA : contexte ou null si fermé. */
+  aiQuickFixContext: { fileId: string; line: number; kind: 'warning' | 'suggestion' } | null
+  setAiQuickFixContext: (ctx: EditorState['aiQuickFixContext']) => void
 }
 
 /** Persistance asynchrone de `.aether/workspace.json` après mise à jour du store. */
@@ -290,6 +312,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   commandPaletteOpen: false,
   globalSearchOpen: false,
   goToSymbolOpen: false,
+  goToSymbolFilter: 'all' as const,
   settingsOpen: false,
   settingsCategory: (() => {
     if (typeof window === 'undefined') return DEFAULT_SETTINGS_CATEGORY
@@ -299,6 +322,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   missionControlOpen: false,
   terminalPanelOpen: false,
   terminalPanelHeight: 200,
+  terminalDock: 'workspace' as TerminalDockMode,
+  editorSplit: 'none' as EditorSplitMode,
+  activeEditorPane: 'primary' as const,
+  editorSplitRatio: 0.5,
   aiMode: 'cloud',
   aiHealth: 'loading',
   indexingError: null,
@@ -362,7 +389,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   toggleAiPanel: () => set((state) => ({ aiPanelVisible: !state.aiPanelVisible })),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
   setGlobalSearchOpen: (open) => set({ globalSearchOpen: open }),
-  setGoToSymbolOpen: (open) => set({ goToSymbolOpen: open }),
+  setGoToSymbolOpen: (open, filter) =>
+    set((state) => ({
+      goToSymbolOpen: open,
+      goToSymbolFilter: open ? (filter ?? 'all') : state.goToSymbolFilter,
+    })),
+  setEditorSplit: (mode) =>
+    set(() => ({
+      editorSplit: mode,
+      ...(mode === 'none'
+        ? { editorCommandRunnerSecondary: null, activeEditorPane: 'primary' as const }
+        : {}),
+    })),
+  setActiveEditorPane: (pane) => set({ activeEditorPane: pane }),
+  setEditorSplitRatio: (ratio) =>
+    set({ editorSplitRatio: Math.min(0.85, Math.max(0.15, ratio)) }),
+  setTerminalDock: (dock) => set({ terminalDock: dock }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setSettingsCategory: (category) => {
     if (typeof window !== 'undefined') {
@@ -773,7 +815,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return false
   },
 
-  editorCommandRunner: null as ((cmd: EditorCommand) => boolean) | null,
-  setEditorCommandRunner: (runner) => set({ editorCommandRunner: runner }),
-  executeEditorCommand: (cmd) => get().editorCommandRunner?.(cmd) ?? false,
+  editorCommandRunnerPrimary: null as ((cmd: EditorCommand) => boolean) | null,
+  editorCommandRunnerSecondary: null as ((cmd: EditorCommand) => boolean) | null,
+  setEditorCommandRunner: (pane, runner) =>
+    set(
+      pane === 'primary'
+        ? { editorCommandRunnerPrimary: runner }
+        : { editorCommandRunnerSecondary: runner }
+    ),
+  executeEditorCommand: (cmd) => {
+    const { activeEditorPane, editorCommandRunnerPrimary, editorCommandRunnerSecondary } = get()
+    const runner =
+      activeEditorPane === 'secondary' ? editorCommandRunnerSecondary : editorCommandRunnerPrimary
+    return runner?.(cmd) ?? false
+  },
+  aiQuickFixContext: null,
+  setAiQuickFixContext: (ctx) => set({ aiQuickFixContext: ctx }),
 }))

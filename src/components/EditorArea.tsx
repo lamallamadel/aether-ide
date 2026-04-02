@@ -1,9 +1,18 @@
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Command, FileCode, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
+import type { EditorSplitMode } from '../state/editorStore'
 import { CodeEditor } from './CodeEditor'
+import { EditorBreadcrumb } from './EditorBreadcrumb'
+import type { EditorMetrics } from './EditorPositionBar'
+import { EditorPositionBar } from './EditorPositionBar'
+import { TerminalPanel } from './TerminalPanel'
+import { WorktreeInlineBar } from './WorktreeInlineBar'
+import { AiQuickFixBar } from './AiQuickFixBar'
 import { useFileSync } from '../hooks/useFileSync'
+
+const INITIAL_METRICS: EditorMetrics = { line: 1, column: 1, selectionLength: 0 }
 
 const TabSystem = memo(() => {
   const { openFiles, activeFileId, setActiveFile, closeFile } = useEditorStore(
@@ -45,6 +54,44 @@ const TabSystem = memo(() => {
   )
 })
 
+function useSplitResize(editorSplit: EditorSplitMode, setRatio: (r: number) => void) {
+  const splitRef = useRef<HTMLDivElement>(null)
+  const modeRef = useRef(editorSplit)
+  modeRef.current = editorSplit
+
+  const onMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      const startX = e.clientX
+      const startY = e.clientY
+      const el = splitRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const startRatio = useEditorStore.getState().editorSplitRatio
+
+      const onMove = (ev: MouseEvent) => {
+        const mode = modeRef.current
+        if (mode === 'columns') {
+          const delta = ev.clientX - startX
+          setRatio(startRatio + delta / rect.width)
+        } else if (mode === 'rows') {
+          const delta = ev.clientY - startY
+          setRatio(startRatio + delta / rect.height)
+        }
+      }
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+    },
+    [setRatio]
+  )
+
+  return { splitRef, onMouseDown }
+}
+
 export function EditorArea() {
   const {
     activeFileId,
@@ -54,6 +101,13 @@ export function EditorArea() {
     editorMinimap,
     editorTheme,
     editorFontFamily,
+    editorSplit,
+    activeEditorPane,
+    editorSplitRatio,
+    setEditorSplitRatio,
+    terminalDock,
+    terminalPanelOpen,
+    terminalPanelHeight,
   } = useEditorStore(
     useShallow((s) => ({
       activeFileId: s.activeFileId,
@@ -63,10 +117,35 @@ export function EditorArea() {
       editorMinimap: s.editorMinimap,
       editorTheme: s.editorTheme,
       editorFontFamily: s.editorFontFamily,
+      editorSplit: s.editorSplit,
+      activeEditorPane: s.activeEditorPane,
+      editorSplitRatio: s.editorSplitRatio,
+      setEditorSplitRatio: s.setEditorSplitRatio,
+      terminalDock: s.terminalDock,
+      terminalPanelOpen: s.terminalPanelOpen,
+      terminalPanelHeight: s.terminalPanelHeight,
     }))
   )
   const { syncFile } = useFileSync()
   const content = activeFileId ? getFileContent(activeFileId) : '// Select a file to view content'
+
+  const [metricsPrimary, setMetricsPrimary] = useState<EditorMetrics>(INITIAL_METRICS)
+  const [metricsSecondary, setMetricsSecondary] = useState<EditorMetrics>(INITIAL_METRICS)
+
+  useEffect(() => {
+    setMetricsPrimary(INITIAL_METRICS)
+    setMetricsSecondary(INITIAL_METRICS)
+  }, [activeFileId])
+
+  const handleMetricsPrimary = useCallback((m: EditorMetrics) => {
+    setMetricsPrimary(m)
+  }, [])
+  const handleMetricsSecondary = useCallback((m: EditorMetrics) => {
+    setMetricsSecondary(m)
+  }, [])
+
+  const displayedMetrics =
+    editorSplit !== 'none' && activeEditorPane === 'secondary' ? metricsSecondary : metricsPrimary
 
   const handleEditorChange = useCallback(
     (next: string) => {
@@ -76,24 +155,80 @@ export function EditorArea() {
     [activeFileId, syncFile]
   )
 
+  const { splitRef, onMouseDown } = useSplitResize(editorSplit, setEditorSplitRatio)
+
+  const editorBlock = (pane: 'primary' | 'secondary', minimap: boolean) =>
+    activeFileId ? (
+      <CodeEditor
+        fileId={activeFileId}
+        value={content}
+        onChange={handleEditorChange}
+        onEditorMetrics={pane === 'primary' ? handleMetricsPrimary : handleMetricsSecondary}
+        paneId={pane}
+        fontSizePx={editorFontSizePx}
+        fontFamily={editorFontFamily}
+        theme={editorTheme}
+        wordWrap={editorWordWrap}
+        minimap={minimap}
+      />
+    ) : null
+
+  const splitContent =
+    editorSplit === 'none' ? (
+      <div className="flex-1 min-h-0 min-w-0">{editorBlock('primary', editorMinimap)}</div>
+    ) : editorSplit === 'columns' ? (
+      <div ref={splitRef} className="flex flex-1 flex-row min-h-0 min-w-0">
+        <div
+          className="min-h-0 min-w-0 flex flex-col shrink-0"
+          style={{ width: `${editorSplitRatio * 100}%` }}
+        >
+          {editorBlock('primary', editorMinimap)}
+        </div>
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          className="w-1 shrink-0 z-10 cursor-col-resize bg-white/10 hover:bg-primary-500/50"
+          onMouseDown={onMouseDown}
+        />
+        <div className="flex-1 min-h-0 min-w-0 flex flex-col">{editorBlock('secondary', false)}</div>
+      </div>
+    ) : (
+      <div ref={splitRef} className="flex flex-1 flex-col min-h-0 min-w-0">
+        <div
+          className="min-h-0 min-w-0 flex flex-col shrink-0"
+          style={{ height: `${editorSplitRatio * 100}%` }}
+        >
+          {editorBlock('primary', editorMinimap)}
+        </div>
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          className="h-1 shrink-0 z-10 cursor-row-resize bg-white/10 hover:bg-primary-500/50"
+          onMouseDown={onMouseDown}
+        />
+        <div className="flex-1 min-h-0 min-w-0 flex flex-col">{editorBlock('secondary', false)}</div>
+      </div>
+    )
+
   return (
-    <div className="flex-1 flex flex-col bg-[#1e1e1e] relative overflow-hidden">
+    <div className="flex-1 flex flex-col bg-[#1e1e1e] relative overflow-hidden min-h-0">
       <TabSystem />
-      <div className="flex-1 relative overflow-auto custom-scrollbar">
+      {activeFileId ? <EditorBreadcrumb filePath={activeFileId} /> : null}
+      {activeFileId ? <WorktreeInlineBar /> : null}
+      {activeFileId ? <AiQuickFixBar /> : null}
+      <div className="flex-1 relative overflow-hidden min-h-0 flex flex-col">
         {activeFileId ? (
-          <div className="absolute inset-0 flex">
-            <div className="flex-1 min-w-0">
-              <CodeEditor
-                fileId={activeFileId}
-                value={content}
-                onChange={handleEditorChange}
-                fontSizePx={editorFontSizePx}
-                fontFamily={editorFontFamily}
-                theme={editorTheme}
-                wordWrap={editorWordWrap}
-                minimap={editorMinimap}
-              />
-            </div>
+          <div className="absolute inset-0 flex flex-col min-h-0">
+            <div className="flex-1 min-h-0 flex flex-col">{splitContent}</div>
+            <EditorPositionBar metrics={displayedMetrics} />
+            {terminalDock === 'editor' && terminalPanelOpen ? (
+              <div
+                className="shrink-0 border-t border-white/10 max-h-[45%] min-h-[80px] flex flex-col"
+                style={{ height: terminalPanelHeight }}
+              >
+                <TerminalPanel embedded />
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-gray-600">

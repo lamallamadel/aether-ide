@@ -7,6 +7,7 @@ import { GoToSymbol } from './GoToSymbol'
 beforeEach(() => {
   useEditorStore.setState({
     goToSymbolOpen: true,
+    goToSymbolFilter: 'all',
     activeFileId: 'App.tsx',
     files: [
       {
@@ -38,7 +39,7 @@ describe('GoToSymbol', () => {
   it('filters symbols by query', async () => {
     const user = userEvent.setup()
     render(<GoToSymbol />)
-    await user.type(screen.getByPlaceholderText('Type symbol name...'), 'hel')
+    await user.type(screen.getByPlaceholderText(/Type symbol name/), 'hel')
     expect(screen.getByText('hello')).toBeInTheDocument()
     expect(screen.queryByText('x')).not.toBeInTheDocument()
   })
