@@ -16,6 +16,11 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/@huggingface/transformers')) return 'transformers-vendor'
+        },
+      },
       onwarn(warning, warn) {
         if (warning.code === 'MODULE_LEVEL_DIRECTIVE') {
           return

@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { SETTINGS_CATEGORIES } from '../config/settingsCategories'
 import { useEditorStore } from '../state/editorStore'
 import { isSupported, pickDirectory } from '../services/fileSystem/fileSystemAccess'
+import { getWorkspaceShellKind, pickNativeWorkspaceRootPath } from '../services/fileSystem/workspaceBackend'
 
 type MenuKey = 'File' | 'Edit' | 'Selection' | 'View' | 'Go' | 'Run' | 'Terminal' | 'Preferences' | 'Help'
 
@@ -34,6 +35,7 @@ export function MenuBar() {
     toggleEditorMinimap,
     executeEditorCommand,
     loadProjectFromDirectory,
+    loadProjectFromNativePath,
     saveFileToDisk,
     saveFileAsInWorkspace,
     hasFileHandle,
@@ -61,6 +63,7 @@ export function MenuBar() {
       toggleEditorMinimap: s.toggleEditorMinimap,
       executeEditorCommand: s.executeEditorCommand,
       loadProjectFromDirectory: s.loadProjectFromDirectory,
+      loadProjectFromNativePath: s.loadProjectFromNativePath,
       saveFileToDisk: s.saveFileToDisk,
       saveFileAsInWorkspace: s.saveFileAsInWorkspace,
       hasFileHandle: s.hasFileHandle,
@@ -100,6 +103,14 @@ export function MenuBar() {
           id: 'file-folder',
           label: 'Open Folder...',
           action: async () => {
+            if (getWorkspaceShellKind() === 'electron') {
+              const nativePath = await pickNativeWorkspaceRootPath()
+              if (nativePath) {
+                await loadProjectFromNativePath(nativePath)
+                announce('Projet chargé (disque natif)')
+                return
+              }
+            }
             if (!isSupported()) {
               announce('File System Access non supporté. Utilisez Chrome ou Edge.')
               return
@@ -221,6 +232,7 @@ export function MenuBar() {
       createUntitledFile,
       hasFileHandle,
       loadProjectFromDirectory,
+      loadProjectFromNativePath,
       saveFileToDisk,
       saveFileAsInWorkspace,
       setCommandPaletteOpen,

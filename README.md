@@ -79,6 +79,7 @@ npm run desktop:build  # Build Vite avec chemins relatifs + electron-builder →
 - `window.aetherDesktop` expose la plateforme et un hook IPC `pickWorkspaceRoot()` (chemin absolu) pour une future couche FS 100 % native.
 - CI : workflow [`.github/workflows/desktop.yml`](./.github/workflows/desktop.yml) (matrice Ubuntu / Windows / macOS). La signature des binaires (Windows/macOS) n’est pas configurée dans ce dépôt.
 - **Windows** : si `electron-builder` échoue en extrayant `winCodeSign` (symlinks), activer le **mode développeur** Windows ou lancer le terminal en administrateur ; la config utilise `signAndEditExecutable: false` et `npmRebuild: false` pour limiter ces dépendances.
+- **Windows (cibles)** : l’installeur **NSIS** (`makensis` 32 bits) peut provoquer `Internal compiler error #12345: error creating mmap` sur des applis très lourdes (p. ex. gros WASM). Les cibles par défaut sont **portable** + **zip** (`x64`) plutôt que NSIS.
 
 ## Limitations connues
 - **Chat IA** : utilise uniquement GraphRAG (retrieval). Pas de génération LLM — les réponses sont des snippets formatés, pas un vrai dialogue.

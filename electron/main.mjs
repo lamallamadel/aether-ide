@@ -4,6 +4,11 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  readWorkspaceTreeNative,
+  readTextUnderRoot,
+  writeFileUnderRoot,
+} from './workspaceNative.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -56,6 +61,20 @@ function registerIpcHandlers() {
     })
     if (r.canceled || r.filePaths.length === 0) return null
     return r.filePaths[0]
+  })
+
+  ipcMain.handle('aether:load-workspace', async (_event, rootPath) => {
+    if (typeof rootPath !== 'string' || !rootPath.trim()) throw new Error('Invalid root path')
+    return readWorkspaceTreeNative(rootPath)
+  })
+
+  ipcMain.handle('aether:write-file-relative', async (_event, rootPath, relativePath, content) => {
+    if (typeof content !== 'string') throw new Error('Invalid content')
+    await writeFileUnderRoot(rootPath, relativePath, content)
+  })
+
+  ipcMain.handle('aether:read-text-relative', async (_event, rootPath, relativePath) => {
+    return readTextUnderRoot(rootPath, relativePath)
   })
 }
 

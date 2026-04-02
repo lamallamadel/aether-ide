@@ -1,6 +1,6 @@
 {
   "name": "ide",
-  "description": "Aether Code IDE — prototype web IDE with optional Electron shell",
+  "description": "Aether Code IDE - prototype web IDE with optional Electron shell",
   "author": "Aether",
   "private": true,
   "version": "0.1.0",
@@ -89,8 +89,9 @@
     "win": {
       "signAndEditExecutable": false,
       "target": [
-        "nsis",
-        "zip"
+        { "target": "portable", "arch": ["x64"] },
+        { "target": "zip", "arch": ["x64"] },
+        { "target": "nsis", "arch": ["x64"] }
       ]
     },
     "mac": {

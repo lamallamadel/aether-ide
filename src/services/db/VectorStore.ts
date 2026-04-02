@@ -19,8 +19,6 @@ export interface EmbeddingProvider {
     embed(text: string): Promise<Float32Array>
 }
 
-import { pipeline } from '@huggingface/transformers'
-
 export const transformersEmbeddingProvider: EmbeddingProvider = {
     embed: async (text: string) => {
         const extractor = await PipelineSingleton.getInstance()
@@ -42,6 +40,7 @@ class PipelineSingleton {
 
         if (!this.loading) {
             const load = async (device?: 'webgpu') => {
+                const { pipeline } = await import('@huggingface/transformers')
                 const extractor = await pipeline(this.task as 'feature-extraction', this.model, {
                     ...(device && { device }),
                 })

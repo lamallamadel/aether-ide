@@ -54,6 +54,7 @@ beforeEach(() => {
     files: INITIAL_FILES,
     fileHandles: {},
     workspaceHandle: null,
+    workspaceRootPath: null,
     activeFileId: 'App.tsx',
     openFiles: ['App.tsx', 'main.tsx'],
     sidebarVisible: true,

@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld('aetherDesktop', {
     electron: process.versions.electron,
     chrome: process.versions.chrome,
   },
-  /** Chemin absolu du dossier choisi (pour une future couche FS native). */
   pickWorkspaceRoot: () => ipcRenderer.invoke('aether:pick-directory'),
+  loadWorkspace: (rootPath) => ipcRenderer.invoke('aether:load-workspace', rootPath),
+  writeFileRelative: (rootPath, relativePath, content) =>
+    ipcRenderer.invoke('aether:write-file-relative', rootPath, relativePath, content),
+  readTextRelative: (rootPath, relativePath) =>
+    ipcRenderer.invoke('aether:read-text-relative', rootPath, relativePath),
 })

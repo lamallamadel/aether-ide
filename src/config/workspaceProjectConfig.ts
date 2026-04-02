@@ -1,5 +1,6 @@
 import type { WorkspaceEnvironment } from './environment'
 import { readFileContent, writeFileContent } from '../services/fileSystem/fileSystemAccess'
+import { nativeReadTextRelative, nativeWriteFileRelative } from '../services/fileSystem/electronNativeWorkspace'
 
 /** Répertoire des métadonnées projet (à la racine du workspace ouvert). */
 export const AETHER_PROJECT_DIR = '.aether'
@@ -83,4 +84,22 @@ export async function writeWorkspaceProjectConfig(
   const dir = await rootHandle.getDirectoryHandle(AETHER_PROJECT_DIR, { create: true })
   const fileHandle = await dir.getFileHandle(WORKSPACE_PROJECT_CONFIG_FILE, { create: true })
   await writeFileContent(fileHandle, serializeWorkspaceProjectConfig(overrides))
+}
+
+const nativeConfigRelativePath = `${AETHER_PROJECT_DIR}/${WORKSPACE_PROJECT_CONFIG_FILE}`
+
+/** Lit `.aether/workspace.json` via IPC (chemin racine workspace absolu). */
+export async function readWorkspaceOverridesFromNativeRoot(
+  rootPath: string
+): Promise<WorkspaceEnvironment['overrides']> {
+  const text = await nativeReadTextRelative(rootPath, nativeConfigRelativePath)
+  if (text === null) return {}
+  return parseWorkspaceProjectConfigJson(text) ?? {}
+}
+
+export async function writeWorkspaceProjectConfigNative(
+  rootPath: string,
+  overrides: WorkspaceEnvironment['overrides']
+): Promise<void> {
+  await nativeWriteFileRelative(rootPath, nativeConfigRelativePath, serializeWorkspaceProjectConfig(overrides))
 }

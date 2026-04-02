@@ -6,6 +6,11 @@ import { useEditorStore } from '../state/editorStore'
 import { MenuBar } from './MenuBar'
 import * as fsAccess from '../services/fileSystem/fileSystemAccess'
 
+vi.mock('../services/fileSystem/workspaceBackend', () => ({
+  getWorkspaceShellKind: vi.fn(() => 'browser'),
+  pickNativeWorkspaceRootPath: vi.fn(() => Promise.resolve(null)),
+}))
+
 vi.mock('../services/fileSystem/fileSystemAccess', () => ({
   isSupported: vi.fn(() => false),
   pickDirectory: vi.fn(() => Promise.resolve(null)),

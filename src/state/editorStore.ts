@@ -8,7 +8,13 @@ import type { AetherLspMode } from '../lsp/server/aetherEmbeddedServer'
 import type { RuntimeEnvironment, WorkspaceEnvironment, WorkspaceEnvironmentStatus, ResolvedEnvironment } from '../config/environment'
 import { resolveEnvironment } from '../config/environment'
 import { DEFAULT_SETTINGS_CATEGORY, isSettingsCategory, SETTINGS_CATEGORY_STORAGE_KEY, type SettingsCategory } from '../config/settingsCategories'
-import { readWorkspaceOverridesFromRoot, writeWorkspaceProjectConfig } from '../config/workspaceProjectConfig'
+import {
+  readWorkspaceOverridesFromRoot,
+  readWorkspaceOverridesFromNativeRoot,
+  writeWorkspaceProjectConfig,
+  writeWorkspaceProjectConfigNative,
+} from '../config/workspaceProjectConfig'
+import { nativeLoadWorkspace, nativeWriteFileRelative } from '../services/fileSystem/electronNativeWorkspace'
 
 export type AiHealthStatus = 'full' | 'degraded' | 'offline' | 'loading'
 
@@ -19,6 +25,8 @@ export interface EditorState {
   files: FileNode[]
   fileHandles: Record<string, FileSystemFileHandle>
   workspaceHandle: FileSystemDirectoryHandle | null
+  /** Racine workspace absolue (Electron + IPC natif) ; exclusif avec un chargement FSA classique. */
+  workspaceRootPath: string | null
   activeFileId: string | null
   openFiles: string[]
   sidebarVisible: boolean
@@ -97,6 +105,7 @@ export interface EditorState {
   applyWorktreeChange: (fileId: string) => void
   clearWorktree: () => void
   loadProjectFromDirectory: (handle: FileSystemDirectoryHandle) => Promise<void>
+  loadProjectFromNativePath: (absolutePath: string) => Promise<void>
   saveFileToDisk: (fileId: string) => Promise<boolean>
   saveFileAsInWorkspace: (fileId: string, targetPath: string) => Promise<{ ok: boolean; fileId?: string; error?: string }>
   hasFileHandle: (fileId: string) => boolean
@@ -110,11 +119,17 @@ export interface EditorState {
 /** Persistance asynchrone de `.aether/workspace.json` après mise à jour du store. */
 const schedulePersistWorkspaceProjectConfig = (get: () => EditorState) => {
   queueMicrotask(() => {
-    const { workspaceHandle, workspaceEnvironment } = get()
-    if (!workspaceHandle || !workspaceEnvironment) return
-    void writeWorkspaceProjectConfig(workspaceHandle, workspaceEnvironment.overrides).catch((err) =>
-      console.error('writeWorkspaceProjectConfig failed', err)
-    )
+    const { workspaceHandle, workspaceRootPath, workspaceEnvironment } = get()
+    if (!workspaceEnvironment) return
+    if (workspaceHandle) {
+      void writeWorkspaceProjectConfig(workspaceHandle, workspaceEnvironment.overrides).catch((err) =>
+        console.error('writeWorkspaceProjectConfig failed', err)
+      )
+    } else if (workspaceRootPath) {
+      void writeWorkspaceProjectConfigNative(workspaceRootPath, workspaceEnvironment.overrides).catch((err) =>
+        console.error('writeWorkspaceProjectConfigNative failed', err)
+      )
+    }
   })
 }
 
@@ -267,6 +282,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   files: INITIAL_FILES,
   fileHandles: {} as Record<string, FileSystemFileHandle>,
   workspaceHandle: null,
+  workspaceRootPath: null,
   activeFileId: 'App.tsx',
   openFiles: ['App.tsx', 'main.tsx'],
   sidebarVisible: true,
@@ -442,11 +458,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   resetWorkspaceEnvironment: () =>
     set((state) => {
       const resolved = resolveEnvironment(state.runtimeEnvironment, null)
-      const { workspaceHandle } = state
+      const { workspaceHandle, workspaceRootPath } = state
       if (workspaceHandle) {
         queueMicrotask(() => {
           void writeWorkspaceProjectConfig(workspaceHandle, {}).catch((err) =>
             console.error('writeWorkspaceProjectConfig failed', err)
+          )
+        })
+      } else if (workspaceRootPath) {
+        queueMicrotask(() => {
+          void writeWorkspaceProjectConfigNative(workspaceRootPath, {}).catch((err) =>
+            console.error('writeWorkspaceProjectConfigNative failed', err)
           )
         })
       }
@@ -537,6 +559,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         files: newFiles,
         fileHandles: handles,
         workspaceHandle: handle,
+        workspaceRootPath: null,
         openFiles: firstFileId ? [firstFileId] : [],
         activeFileId: firstFileId,
         activeWorkspaceId: workspaceId,
@@ -556,7 +579,66 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
+  loadProjectFromNativePath: async (absolutePath) => {
+    set({ workspaceEnvironmentStatus: 'loading' })
+    try {
+      const { files: newFiles, rootPath, workspaceLabel } = await nativeLoadWorkspace(absolutePath)
+      const firstFileId = (() => {
+        const flat: FileNode[] = []
+        const visit = (n: FileNode) => {
+          if (n.type === 'file') flat.push(n)
+          if (n.children) n.children.forEach(visit)
+        }
+        newFiles.forEach((root) => visit(root))
+        return flat[0]?.id ?? null
+      })()
+      const workspaceId = workspaceLabel
+      const overrides = await readWorkspaceOverridesFromNativeRoot(rootPath)
+      const workspaceEnvironment: WorkspaceEnvironment = {
+        workspaceId,
+        overrides,
+      }
+      const runtimeEnv = get().runtimeEnvironment
+      const resolved = resolveEnvironment(runtimeEnv, workspaceEnvironment)
+      set({
+        files: newFiles,
+        fileHandles: {},
+        workspaceHandle: null,
+        workspaceRootPath: rootPath,
+        openFiles: firstFileId ? [firstFileId] : [],
+        activeFileId: firstFileId,
+        activeWorkspaceId: workspaceId,
+        worktreeChanges: {},
+        syntaxTrees: {},
+        symbolsByFile: {},
+        workspaceEnvironment,
+        workspaceEnvironmentStatus: 'ready',
+        aiMode: resolved.aiMode,
+        lspMode: resolved.lspMode,
+        externalLspEndpoint: resolved.externalLspEndpoint,
+        resolvedEnvironment: resolved,
+      })
+    } catch (err) {
+      console.error('loadProjectFromNativePath failed', err)
+      set({
+        indexingError: err instanceof Error ? err.message : 'Failed to load project',
+        workspaceEnvironmentStatus: 'degraded',
+      })
+    }
+  },
+
   saveFileToDisk: async (fileId) => {
+    const rootPath = get().workspaceRootPath
+    if (rootPath) {
+      try {
+        const content = get().getFileContent(fileId)
+        await nativeWriteFileRelative(rootPath, fileId.replaceAll('\\', '/'), content)
+        return true
+      } catch (err) {
+        console.error('saveFileToDisk failed', err)
+        return false
+      }
+    }
     const handle = get().fileHandles[fileId]
     if (!handle) return false
     try {
@@ -570,14 +652,62 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   saveFileAsInWorkspace: async (fileId, targetPath) => {
-    const workspaceHandle = get().workspaceHandle
-    if (!workspaceHandle) return { ok: false, error: 'Open Folder first' }
     const normalized = targetPath.trim().replaceAll('\\', '/').replace(/^\/+|\/+$/g, '')
     if (!normalized || normalized.includes('..')) return { ok: false, error: 'Invalid path' }
-    const content = get().getFileContent(fileId)
     const segments = normalized.split('/').filter(Boolean)
     const name = segments[segments.length - 1]
     if (!name) return { ok: false, error: 'Invalid file name' }
+
+    const content = get().getFileContent(fileId)
+    const nativeRoot = get().workspaceRootPath
+    if (nativeRoot) {
+      try {
+        await nativeWriteFileRelative(nativeRoot, normalized, content)
+        set((state) => {
+          let files = upsertFileInWorkspaceTree(state.files, normalized, content)
+          if (fileId !== normalized && fileId.startsWith('Untitled-')) {
+            files = removeFileNodeById(files, fileId)
+          }
+          const openFiles = replaceOpenFilesAfterSaveAs(state.openFiles, fileId, normalized)
+          let syntaxTrees = state.syntaxTrees
+          let symbolsByFile = state.symbolsByFile
+          let worktreeChanges = state.worktreeChanges
+          if (fileId !== normalized) {
+            if (state.syntaxTrees[fileId] !== undefined) {
+              syntaxTrees = { ...state.syntaxTrees }
+              syntaxTrees[normalized] = syntaxTrees[fileId]
+              delete syntaxTrees[fileId]
+            }
+            if (state.symbolsByFile[fileId] !== undefined) {
+              symbolsByFile = { ...state.symbolsByFile }
+              symbolsByFile[normalized] = symbolsByFile[fileId]
+              delete symbolsByFile[fileId]
+            }
+            if (state.worktreeChanges[fileId] !== undefined) {
+              worktreeChanges = { ...state.worktreeChanges }
+              const ch = worktreeChanges[fileId]
+              delete worktreeChanges[fileId]
+              worktreeChanges[normalized] = { ...ch, fileId: normalized }
+            }
+          }
+          return {
+            files,
+            activeFileId: normalized,
+            openFiles,
+            syntaxTrees,
+            symbolsByFile,
+            worktreeChanges,
+          }
+        })
+        return { ok: true, fileId: normalized }
+      } catch (err) {
+        console.error('saveFileAsInWorkspace failed', err)
+        return { ok: false, error: err instanceof Error ? err.message : 'Save As failed' }
+      }
+    }
+
+    const workspaceHandle = get().workspaceHandle
+    if (!workspaceHandle) return { ok: false, error: 'Open Folder first' }
 
     try {
       let directory = workspaceHandle
@@ -634,7 +764,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  hasFileHandle: (fileId) => !!get().fileHandles[fileId],
+  hasFileHandle: (fileId) => {
+    if (get().fileHandles[fileId]) return true
+    if (get().workspaceRootPath) {
+      const n = findNode(get().files, fileId)
+      return n?.type === 'file'
+    }
+    return false
+  },
 
   editorCommandRunner: null as ((cmd: EditorCommand) => boolean) | null,
   setEditorCommandRunner: (runner) => set({ editorCommandRunner: runner }),

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEditorStore } from '../state/editorStore'
@@ -53,11 +53,11 @@ describe('SettingsModal', () => {
     expect(useEditorStore.getState().settingsCategory).toBe('servers')
   })
 
-  it('filters categories with search', async () => {
-    const user = userEvent.setup()
+  it('filters categories with search', () => {
     useEditorStore.setState({ settingsOpen: true })
     render(<SettingsModal />)
-    await user.type(screen.getByRole('textbox', { name: 'Search settings' }), 'key')
+    const search = screen.getByRole('textbox', { name: 'Search settings' })
+    fireEvent.change(search, { target: { value: 'key' } })
     const nav = screen.getByRole('navigation', { name: 'Settings categories' })
     expect(within(nav).getByRole('button', { name: 'Keybindings' })).toBeInTheDocument()
     expect(within(nav).queryByRole('button', { name: 'Theme' })).not.toBeInTheDocument()
@@ -78,7 +78,7 @@ describe('SettingsModal', () => {
     useEditorStore.setState({ settingsOpen: true })
     render(<SettingsModal />)
     const input = screen.getByRole('textbox', { name: 'Search settings' })
-    await user.type(input, 'env')
+    fireEvent.change(input, { target: { value: 'env' } })
     await user.keyboard('{Escape}')
     expect(useEditorStore.getState().settingsOpen).toBe(true)
     expect((input as HTMLInputElement).value).toBe('')

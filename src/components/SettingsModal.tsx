@@ -175,7 +175,11 @@ export function SettingsModal() {
             <input
               aria-label="Search settings"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value
+                searchQueryRef.current = v
+                setSearchQuery(v)
+              }}
               placeholder="Search settings..."
               className="w-full bg-transparent text-sm text-gray-200 placeholder:text-gray-600 focus:outline-none"
             />
