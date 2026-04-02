@@ -71,6 +71,15 @@ describe('MenuBar', () => {
     expect(screen.getByRole('menuitem', { name: 'Open Settings' })).toBeInTheDocument()
   })
 
+  it('Preferences menu opens settings on selected category', async () => {
+    const user = userEvent.setup()
+    render(<MenuBar />)
+    await user.click(screen.getByRole('button', { name: 'Preferences' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Environment' }))
+    expect(useEditorStore.getState().settingsOpen).toBe(true)
+    expect(useEditorStore.getState().settingsCategory).toBe('environment')
+  })
+
   it('View menu contains Global Search', async () => {
     const user = userEvent.setup()
     render(<MenuBar />)
@@ -186,20 +195,14 @@ describe('MenuBar', () => {
     expect(useEditorStore.getState().goToSymbolOpen).toBe(true)
   })
 
-  it('File > Save downloads active file when no file handle', async () => {
+  it('File > Save shows workspace message when no file handle', async () => {
     const user = userEvent.setup()
-    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:menu-test')
-    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     render(<MenuBar />)
 
     await user.click(screen.getByRole('button', { name: 'File' }))
     await user.click(screen.getByRole('menuitem', { name: 'Save' }))
 
-    expect(createObjectURLSpy).toHaveBeenCalled()
-    expect(clickSpy).toHaveBeenCalled()
-    expect(revokeObjectURLSpy).toHaveBeenCalled()
-    expect(screen.getByText(/Downloaded App\.tsx/)).toBeInTheDocument()
+    expect(screen.getByText(/No workspace handle/)).toBeInTheDocument()
   })
 
   it('File > Save uses store file handle path when available', async () => {
@@ -218,18 +221,21 @@ describe('MenuBar', () => {
     expect(screen.getByText(/Saved App\.tsx/)).toBeInTheDocument()
   })
 
-  it('File > Save As downloads active file', async () => {
+  it('File > Save As uses saveFileAsInWorkspace', async () => {
     const user = userEvent.setup()
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
-    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:menu-test-2')
-    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('src/new-name.ts')
+    const saveAsSpy = vi.fn().mockResolvedValue({ ok: true, fileId: 'src/new-name.ts' })
+    useEditorStore.setState({ saveFileAsInWorkspace: saveAsSpy })
     render(<MenuBar />)
 
     await user.click(screen.getByRole('button', { name: 'File' }))
     await user.click(screen.getByRole('menuitem', { name: 'Save As...' }))
 
-    expect(clickSpy).toHaveBeenCalled()
-    expect(screen.getByText(/Downloaded App\.tsx/)).toBeInTheDocument()
+    expect(promptSpy).toHaveBeenCalled()
+    expect(saveAsSpy).toHaveBeenCalledWith('App.tsx', 'src/new-name.ts')
+    await vi.waitFor(() => {
+      expect(screen.getByText(/Saved as src\/new-name\.ts/)).toBeInTheDocument()
+    })
   })
 
   it('File > Open Folder loads project when supported and directory picked', async () => {

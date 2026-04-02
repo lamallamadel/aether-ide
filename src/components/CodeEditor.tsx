@@ -201,6 +201,7 @@ export function CodeEditor(props: {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const lastValueRef = useRef<string>(value)
+  const lastFileIdRef = useRef<string | null>(null)
   const debounceRef = useRef<number | null>(null)
   const languageCompartment = useRef(new Compartment()).current
   const wrapCompartment = useRef(new Compartment()).current
@@ -340,6 +341,18 @@ export function CodeEditor(props: {
       lastValueRef.current = value
     }
   }, [value])
+
+  /** Changement d’onglet / Save As : recharger le document même si le texte est identique. */
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    const prev = lastFileIdRef.current
+    lastFileIdRef.current = fileId
+    if (prev !== null && prev !== fileId) {
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } })
+      lastValueRef.current = value
+    }
+  }, [fileId, value])
 
   useEffect(() => {
     const view = viewRef.current

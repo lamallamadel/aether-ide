@@ -26,7 +26,7 @@ import { extensionHost } from './extensions/host'
 import { loadRuntimeEnvironment } from './config/environment'
 
 export default function App() {
-  const { files, activeFileId, terminalPanelOpen, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, setSettingsOpen, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError, toggleTerminalPanel, lspMode, externalLspEndpoint, setRuntimeEnvironment } =
+  const { files, activeFileId, terminalPanelOpen, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, openSettings, aiMode, setPerf, setAiHealth, ideThemeColor, setMissionControlOpen, setIndexingError, toggleTerminalPanel, lspMode, externalLspEndpoint, setRuntimeEnvironment, hasFileHandle, saveFileToDisk } =
     useEditorStore(useShallow((s) => ({
       files: s.files,
       activeFileId: s.activeFileId,
@@ -35,7 +35,7 @@ export default function App() {
       setGoToSymbolOpen: s.setGoToSymbolOpen,
       toggleSidebar: s.toggleSidebar,
       toggleAiPanel: s.toggleAiPanel,
-      setSettingsOpen: s.setSettingsOpen,
+      openSettings: s.openSettings,
       aiMode: s.aiMode,
       setPerf: s.setPerf,
       setAiHealth: s.setAiHealth,
@@ -46,6 +46,8 @@ export default function App() {
       lspMode: s.lspMode,
       externalLspEndpoint: s.externalLspEndpoint,
       setRuntimeEnvironment: s.setRuntimeEnvironment,
+      hasFileHandle: s.hasFileHandle,
+      saveFileToDisk: s.saveFileToDisk,
     })))
 
   useEffect(() => {
@@ -134,7 +136,7 @@ export default function App() {
       }
       if ((e.metaKey || e.ctrlKey) && e.key === ',') {
         e.preventDefault()
-        setSettingsOpen(true)
+        openSettings({ open: true })
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'o') {
         e.preventDefault()
@@ -144,11 +146,17 @@ export default function App() {
         e.preventDefault()
         toggleTerminalPanel()
       }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        if (!activeFileId) return
+        if (!hasFileHandle(activeFileId)) return
+        void saveFileToDisk(activeFileId)
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [setCommandPaletteOpen, setGoToSymbolOpen, setSettingsOpen, toggleAiPanel, toggleSidebar, toggleTerminalPanel])
+  }, [activeFileId, hasFileHandle, openSettings, saveFileToDisk, setCommandPaletteOpen, setGoToSymbolOpen, toggleAiPanel, toggleSidebar, toggleTerminalPanel])
 
   useEffect(() => {
     if (aiMode !== 'local') return

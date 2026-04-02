@@ -8,6 +8,15 @@ import {
   insertFileIntoFolder,
   useEditorStore,
 } from './editorStore'
+import { SETTINGS_CATEGORY_STORAGE_KEY } from '../config/settingsCategories'
+
+vi.mock('../config/workspaceProjectConfig', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../config/workspaceProjectConfig')>()
+  return {
+    ...actual,
+    writeWorkspaceProjectConfig: vi.fn().mockResolvedValue(undefined),
+  }
+})
 
 vi.mock('../services/fileSystem/fileSystemAccess', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/fileSystem/fileSystemAccess')>()
@@ -40,9 +49,11 @@ vi.mock('../services/fileSystem/fileSystemAccess', async (importOriginal) => {
 })
 
 beforeEach(() => {
+  window.localStorage.removeItem(SETTINGS_CATEGORY_STORAGE_KEY)
   useEditorStore.setState({
     files: INITIAL_FILES,
     fileHandles: {},
+    workspaceHandle: null,
     activeFileId: 'App.tsx',
     openFiles: ['App.tsx', 'main.tsx'],
     sidebarVisible: true,
@@ -50,6 +61,7 @@ beforeEach(() => {
     commandPaletteOpen: false,
     globalSearchOpen: false,
     settingsOpen: false,
+    settingsCategory: 'editor',
     missionControlOpen: false,
     terminalPanelOpen: false,
     terminalPanelHeight: 200,
@@ -205,6 +217,24 @@ describe('editorStore', () => {
     expect(useEditorStore.getState().settingsOpen).toBe(true)
   })
 
+  it('setSettingsCategory persiste la catégorie', () => {
+    const { setSettingsCategory } = useEditorStore.getState()
+    setSettingsCategory('servers')
+    expect(useEditorStore.getState().settingsCategory).toBe('servers')
+    expect(window.localStorage.getItem(SETTINGS_CATEGORY_STORAGE_KEY)).toBe('servers')
+  })
+
+  it('openSettings ouvre avec catégorie optionnelle', () => {
+    const { openSettings } = useEditorStore.getState()
+    openSettings({ open: true, category: 'environment' })
+    expect(useEditorStore.getState().settingsOpen).toBe(true)
+    expect(useEditorStore.getState().settingsCategory).toBe('environment')
+    expect(window.localStorage.getItem(SETTINGS_CATEGORY_STORAGE_KEY)).toBe('environment')
+    openSettings({ open: false })
+    expect(useEditorStore.getState().settingsOpen).toBe(false)
+    expect(useEditorStore.getState().settingsCategory).toBe('environment')
+  })
+
   it('setSyntaxForFile met à jour syntaxTrees et symbolsByFile', () => {
     const { setSyntaxForFile } = useEditorStore.getState()
     const tree = { root: { type: 'PROGRAM' as const, children: [] } }
@@ -318,6 +348,38 @@ describe('editorStore', () => {
     expect(writeFileContent).toHaveBeenCalled()
   })
 
+  it('saveFileAsInWorkspace retourne erreur sans workspace', async () => {
+    const { saveFileAsInWorkspace } = useEditorStore.getState()
+    const result = await saveFileAsInWorkspace('App.tsx', 'src/new-file.ts')
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('Open Folder')
+  })
+
+  it('saveFileAsInWorkspace crée et ouvre le nouveau fichier', async () => {
+    const getDirectoryHandle = vi.fn(async () => ({
+      getDirectoryHandle,
+      getFileHandle: vi.fn(async () => ({} as FileSystemFileHandle)),
+    }))
+    const getFileHandle = vi.fn(async () => ({} as FileSystemFileHandle))
+    const workspaceHandle = { getDirectoryHandle, getFileHandle } as unknown as FileSystemDirectoryHandle
+    useEditorStore.setState({
+      workspaceHandle,
+      openFiles: ['App.tsx', 'main.tsx'],
+      activeFileId: 'App.tsx',
+    })
+
+    const { saveFileAsInWorkspace, findNode } = useEditorStore.getState()
+    const result = await saveFileAsInWorkspace('App.tsx', 'src/copied/App.copy.tsx')
+    expect(result.ok).toBe(true)
+    expect(result.fileId).toBe('src/copied/App.copy.tsx')
+    expect(getDirectoryHandle).toHaveBeenCalledWith('src', { create: true })
+    expect(findNode('src/copied/App.copy.tsx')).toBeTruthy()
+    expect(useEditorStore.getState().activeFileId).toBe('src/copied/App.copy.tsx')
+    const { openFiles } = useEditorStore.getState()
+    expect(openFiles).toEqual(['src/copied/App.copy.tsx', 'main.tsx'])
+    expect(openFiles).not.toContain('App.tsx')
+  })
+
   it('setRuntimeEnvironment applique les valeurs runtime', () => {
     const { setRuntimeEnvironment } = useEditorStore.getState()
     setRuntimeEnvironment({
@@ -339,5 +401,57 @@ describe('editorStore', () => {
     expect(state.activeWorkspaceId).toBe('ws-test')
     expect(state.workspaceEnvironmentStatus).toBe('ready')
     expect(state.workspaceEnvironment?.workspaceId).toBe('ws-test')
+  })
+
+  it('loadProjectFromDirectory applique les overrides de .aether/workspace.json', async () => {
+    const wpc = await import('../config/workspaceProjectConfig')
+    vi.spyOn(wpc, 'readWorkspaceOverridesFromRoot').mockResolvedValueOnce({
+      aiMode: 'local',
+      lspMode: 'auto',
+      externalLspEndpoint: 'http://lsp.test/dev',
+    })
+    const { loadProjectFromDirectory } = useEditorStore.getState()
+    await loadProjectFromDirectory({ name: 'proj' } as FileSystemDirectoryHandle)
+    const state = useEditorStore.getState()
+    expect(state.workspaceEnvironment?.overrides).toEqual({
+      aiMode: 'local',
+      lspMode: 'auto',
+      externalLspEndpoint: 'http://lsp.test/dev',
+    })
+    expect(state.aiMode).toBe('local')
+    expect(state.lspMode).toBe('auto')
+    expect(state.externalLspEndpoint).toBe('http://lsp.test/dev')
+  })
+
+  it('setAiMode persiste les overrides quand un workspace est chargé', async () => {
+    const { writeWorkspaceProjectConfig } = await import('../config/workspaceProjectConfig')
+    vi.mocked(writeWorkspaceProjectConfig).mockClear()
+    useEditorStore.setState({
+      workspaceHandle: { name: 'w' } as FileSystemDirectoryHandle,
+      workspaceEnvironment: { workspaceId: 'w', overrides: { lspMode: 'embedded' } },
+    })
+    const { setAiMode } = useEditorStore.getState()
+    setAiMode('local')
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(writeWorkspaceProjectConfig).toHaveBeenCalledWith(expect.anything(), {
+      lspMode: 'embedded',
+      aiMode: 'local',
+    })
+  })
+
+  it('resetWorkspaceEnvironment avec dossier ouvert écrit des overrides vides', async () => {
+    const { writeWorkspaceProjectConfig } = await import('../config/workspaceProjectConfig')
+    vi.mocked(writeWorkspaceProjectConfig).mockClear()
+    useEditorStore.setState({
+      workspaceHandle: { name: 'w' } as FileSystemDirectoryHandle,
+      activeWorkspaceId: 'w',
+      workspaceEnvironment: { workspaceId: 'w', overrides: { aiMode: 'local' } },
+    })
+    const { resetWorkspaceEnvironment } = useEditorStore.getState()
+    resetWorkspaceEnvironment()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(writeWorkspaceProjectConfig).toHaveBeenCalledWith(expect.anything(), {})
   })
 })

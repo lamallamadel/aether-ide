@@ -57,6 +57,22 @@ describe('App', () => {
     expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
   }, 15000)
 
+  it('intercepte Ctrl+S pour sauvegarder le fichier actif', async () => {
+    const saveSpy = vi.fn().mockResolvedValue(true)
+    useEditorStore.setState({
+      activeFileId: 'App.tsx',
+      hasFileHandle: () => true,
+      saveFileToDisk: saveSpy,
+    })
+    render(<App />)
+    const event = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, cancelable: true })
+    window.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+    await waitFor(() => {
+      expect(saveSpy).toHaveBeenCalledWith('App.tsx')
+    })
+  }, 15000)
+
   it('ouvre les settings depuis le menu View', async () => {
     const user = userEvent.setup()
     render(<App />)

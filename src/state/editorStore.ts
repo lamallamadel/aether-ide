@@ -7,6 +7,8 @@ import { readDirectoryRecursive, writeFileContent } from '../services/fileSystem
 import type { AetherLspMode } from '../lsp/server/aetherEmbeddedServer'
 import type { RuntimeEnvironment, WorkspaceEnvironment, WorkspaceEnvironmentStatus, ResolvedEnvironment } from '../config/environment'
 import { resolveEnvironment } from '../config/environment'
+import { DEFAULT_SETTINGS_CATEGORY, isSettingsCategory, SETTINGS_CATEGORY_STORAGE_KEY, type SettingsCategory } from '../config/settingsCategories'
+import { readWorkspaceOverridesFromRoot, writeWorkspaceProjectConfig } from '../config/workspaceProjectConfig'
 
 export type AiHealthStatus = 'full' | 'degraded' | 'offline' | 'loading'
 
@@ -16,6 +18,7 @@ export type EditorCommand = 'undo' | 'redo' | 'copy' | 'cut' | 'paste' | 'select
 export interface EditorState {
   files: FileNode[]
   fileHandles: Record<string, FileSystemFileHandle>
+  workspaceHandle: FileSystemDirectoryHandle | null
   activeFileId: string | null
   openFiles: string[]
   sidebarVisible: boolean
@@ -24,6 +27,7 @@ export interface EditorState {
   globalSearchOpen: boolean
   goToSymbolOpen: boolean
   settingsOpen: boolean
+  settingsCategory: SettingsCategory
   missionControlOpen: boolean
   terminalPanelOpen: boolean
   terminalPanelHeight: number
@@ -62,6 +66,8 @@ export interface EditorState {
   setGlobalSearchOpen: (open: boolean) => void
   setGoToSymbolOpen: (open: boolean) => void
   setSettingsOpen: (open: boolean) => void
+  setSettingsCategory: (category: SettingsCategory) => void
+  openSettings: (params?: { open: boolean; category?: SettingsCategory }) => void
   setMissionControlOpen: (open: boolean) => void
   setTerminalPanelOpen: (open: boolean) => void
   setTerminalPanelHeight: (height: number) => void
@@ -92,12 +98,24 @@ export interface EditorState {
   clearWorktree: () => void
   loadProjectFromDirectory: (handle: FileSystemDirectoryHandle) => Promise<void>
   saveFileToDisk: (fileId: string) => Promise<boolean>
+  saveFileAsInWorkspace: (fileId: string, targetPath: string) => Promise<{ ok: boolean; fileId?: string; error?: string }>
   hasFileHandle: (fileId: string) => boolean
   /** Exécute une commande sur l'éditeur actif. Retourne false si aucune vue ou commande non dispo. */
   executeEditorCommand: (cmd: EditorCommand) => boolean
   /** Enregistré par CodeEditor au mount, null au unmount. */
   setEditorCommandRunner: (runner: ((cmd: EditorCommand) => boolean) | null) => void
   editorCommandRunner: ((cmd: EditorCommand) => boolean) | null
+}
+
+/** Persistance asynchrone de `.aether/workspace.json` après mise à jour du store. */
+const schedulePersistWorkspaceProjectConfig = (get: () => EditorState) => {
+  queueMicrotask(() => {
+    const { workspaceHandle, workspaceEnvironment } = get()
+    if (!workspaceHandle || !workspaceEnvironment) return
+    void writeWorkspaceProjectConfig(workspaceHandle, workspaceEnvironment.overrides).catch((err) =>
+      console.error('writeWorkspaceProjectConfig failed', err)
+    )
+  })
 }
 
 export const findNode = (nodes: FileNode[], id: string): FileNode | null => {
@@ -138,9 +156,117 @@ export const insertFileIntoFolder = (nodes: FileNode[], folderId: string, file: 
   })
 }
 
+/** Retire un fichier ou dossier de l’arbre (par id). */
+export const removeFileNodeById = (nodes: FileNode[], id: string): FileNode[] => {
+  return nodes
+    .filter((n) => n.id !== id)
+    .map((n) =>
+      n.children?.length ? { ...n, children: removeFileNodeById(n.children, id) } : n
+    )
+}
+
+/** Après Save As : l’onglet actif doit afficher le nouveau chemin, pas dupliquer l’entrée. */
+const replaceOpenFilesAfterSaveAs = (openFiles: string[], fileId: string, normalized: string): string[] => {
+  const mapped = openFiles.map((id) => (id === fileId ? normalized : id))
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const id of mapped) {
+    if (seen.has(id)) continue
+    seen.add(id)
+    result.push(id)
+  }
+  if (!openFiles.includes(fileId) && !result.includes(normalized)) result.push(normalized)
+  return result
+}
+
+const languageForName = (name: string): string | undefined => {
+  const lower = name.toLowerCase()
+  if (lower.endsWith('.tsx') || lower.endsWith('.ts')) return 'typescript'
+  if (lower.endsWith('.jsx') || lower.endsWith('.js')) return 'javascript'
+  if (lower.endsWith('.json')) return 'json'
+  if (lower.endsWith('.md')) return 'markdown'
+  if (lower.endsWith('.yaml') || lower.endsWith('.yml')) return 'yaml'
+  if (lower.endsWith('.aether')) return 'aether'
+  return undefined
+}
+
+const upsertFileInWorkspaceTree = (nodes: FileNode[], filePath: string, content: string): FileNode[] => {
+  const parts = filePath.split('/').filter(Boolean)
+  if (parts.length === 0) return nodes
+  const fileName = parts[parts.length - 1]
+  const folders = parts.slice(0, -1)
+
+  const upsertChildren = (
+    children: FileNode[],
+    remainingFolders: string[],
+    parentId: string,
+    prefix: string
+  ): FileNode[] => {
+    if (remainingFolders.length === 0) {
+      const fileIndex = children.findIndex((n) => n.type === 'file' && n.id === filePath)
+      if (fileIndex >= 0) {
+        const nextChildren = [...children]
+        nextChildren[fileIndex] = {
+          ...nextChildren[fileIndex],
+          name: fileName,
+          content,
+          language: languageForName(fileName),
+        }
+        return nextChildren
+      }
+      return [
+        ...children,
+        {
+          id: filePath,
+          name: fileName,
+          type: 'file',
+          parentId,
+          language: languageForName(fileName),
+          content,
+        },
+      ]
+    }
+
+    const folderName = remainingFolders[0]
+    const folderId = prefix ? `${prefix}/${folderName}` : folderName
+    const folderIndex = children.findIndex((n) => n.type === 'folder' && n.id === folderId)
+    const nextChildren = [...children]
+    const folderNode: FileNode =
+      folderIndex >= 0
+        ? nextChildren[folderIndex]
+        : {
+            id: folderId,
+            name: folderName,
+            type: 'folder',
+            parentId,
+            isOpen: true,
+            children: [],
+          }
+    const updatedFolder: FileNode = {
+      ...folderNode,
+      isOpen: true,
+      children: upsertChildren(folderNode.children ?? [], remainingFolders.slice(1), folderId, folderId),
+    }
+
+    if (folderIndex >= 0) nextChildren[folderIndex] = updatedFolder
+    else nextChildren.push(updatedFolder)
+    return nextChildren
+  }
+
+  return nodes.map((node) => {
+    if (node.id !== 'root' || node.type !== 'folder') return node
+    return {
+      ...node,
+      isOpen: true,
+      children: upsertChildren(node.children ?? [], folders, 'root', ''),
+    }
+  })
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   files: INITIAL_FILES,
   fileHandles: {} as Record<string, FileSystemFileHandle>,
+  workspaceHandle: null,
   activeFileId: 'App.tsx',
   openFiles: ['App.tsx', 'main.tsx'],
   sidebarVisible: true,
@@ -149,6 +275,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   globalSearchOpen: false,
   goToSymbolOpen: false,
   settingsOpen: false,
+  settingsCategory: (() => {
+    if (typeof window === 'undefined') return DEFAULT_SETTINGS_CATEGORY
+    const value = window.localStorage.getItem(SETTINGS_CATEGORY_STORAGE_KEY)
+    return value && isSettingsCategory(value) ? value : DEFAULT_SETTINGS_CATEGORY
+  })(),
   missionControlOpen: false,
   terminalPanelOpen: false,
   terminalPanelHeight: 200,
@@ -217,6 +348,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setGlobalSearchOpen: (open) => set({ globalSearchOpen: open }),
   setGoToSymbolOpen: (open) => set({ goToSymbolOpen: open }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
+  setSettingsCategory: (category) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(SETTINGS_CATEGORY_STORAGE_KEY, category)
+    }
+    set({ settingsCategory: category })
+  },
+  openSettings: ({ open, category } = { open: true }) => {
+    if (category && typeof window !== 'undefined') {
+      window.localStorage.setItem(SETTINGS_CATEGORY_STORAGE_KEY, category)
+    }
+    set((state) => ({
+      settingsOpen: open,
+      settingsCategory: category ?? state.settingsCategory,
+    }))
+  },
   setMissionControlOpen: (open) => set({ missionControlOpen: open }),
   setTerminalPanelOpen: (open) => set({ terminalPanelOpen: open }),
   setTerminalPanelHeight: (height) => set({ terminalPanelHeight: height }),
@@ -226,6 +372,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const workspaceEnvironment = state.workspaceEnvironment
         ? { ...state.workspaceEnvironment, overrides: { ...state.workspaceEnvironment.overrides, aiMode: mode } }
         : null
+      schedulePersistWorkspaceProjectConfig(get)
       return {
         aiMode: mode,
         workspaceEnvironment,
@@ -248,6 +395,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const workspaceEnvironment = state.workspaceEnvironment
         ? { ...state.workspaceEnvironment, overrides: { ...state.workspaceEnvironment.overrides, lspMode: mode } }
         : null
+      schedulePersistWorkspaceProjectConfig(get)
       return {
         lspMode: mode,
         workspaceEnvironment,
@@ -259,6 +407,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const workspaceEnvironment = state.workspaceEnvironment
         ? { ...state.workspaceEnvironment, overrides: { ...state.workspaceEnvironment.overrides, externalLspEndpoint: endpoint } }
         : null
+      schedulePersistWorkspaceProjectConfig(get)
       return {
         externalLspEndpoint: endpoint,
         workspaceEnvironment,
@@ -279,6 +428,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setWorkspaceEnvironment: (env, status = 'ready') =>
     set((state) => {
       const resolved = resolveEnvironment(state.runtimeEnvironment, env)
+      schedulePersistWorkspaceProjectConfig(get)
       return {
         workspaceEnvironment: env,
         workspaceEnvironmentStatus: status,
@@ -292,6 +442,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   resetWorkspaceEnvironment: () =>
     set((state) => {
       const resolved = resolveEnvironment(state.runtimeEnvironment, null)
+      const { workspaceHandle } = state
+      if (workspaceHandle) {
+        queueMicrotask(() => {
+          void writeWorkspaceProjectConfig(workspaceHandle, {}).catch((err) =>
+            console.error('writeWorkspaceProjectConfig failed', err)
+          )
+        })
+      }
       return {
         workspaceEnvironment: null,
         workspaceEnvironmentStatus: state.activeWorkspaceId ? 'ready' : 'not_loaded',
@@ -368,13 +526,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         return flat[0]?.id ?? null
       })()
       const workspaceId = handle.name || 'workspace'
+      const overrides = await readWorkspaceOverridesFromRoot(handle)
       const workspaceEnvironment: WorkspaceEnvironment = {
         workspaceId,
-        overrides: {},
+        overrides,
       }
+      const runtimeEnv = get().runtimeEnvironment
+      const resolved = resolveEnvironment(runtimeEnv, workspaceEnvironment)
       set({
         files: newFiles,
         fileHandles: handles,
+        workspaceHandle: handle,
         openFiles: firstFileId ? [firstFileId] : [],
         activeFileId: firstFileId,
         activeWorkspaceId: workspaceId,
@@ -383,7 +545,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         symbolsByFile: {},
         workspaceEnvironment,
         workspaceEnvironmentStatus: 'ready',
-        resolvedEnvironment: resolveEnvironment(get().runtimeEnvironment, workspaceEnvironment),
+        aiMode: resolved.aiMode,
+        lspMode: resolved.lspMode,
+        externalLspEndpoint: resolved.externalLspEndpoint,
+        resolvedEnvironment: resolved,
       })
     } catch (err) {
       console.error('loadProjectFromDirectory failed', err)
@@ -401,6 +566,71 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     } catch (err) {
       console.error('saveFileToDisk failed', err)
       return false
+    }
+  },
+
+  saveFileAsInWorkspace: async (fileId, targetPath) => {
+    const workspaceHandle = get().workspaceHandle
+    if (!workspaceHandle) return { ok: false, error: 'Open Folder first' }
+    const normalized = targetPath.trim().replaceAll('\\', '/').replace(/^\/+|\/+$/g, '')
+    if (!normalized || normalized.includes('..')) return { ok: false, error: 'Invalid path' }
+    const content = get().getFileContent(fileId)
+    const segments = normalized.split('/').filter(Boolean)
+    const name = segments[segments.length - 1]
+    if (!name) return { ok: false, error: 'Invalid file name' }
+
+    try {
+      let directory = workspaceHandle
+      for (const folder of segments.slice(0, -1)) {
+        directory = await directory.getDirectoryHandle(folder, { create: true })
+      }
+      const fileHandle = await directory.getFileHandle(name, { create: true })
+      await writeFileContent(fileHandle, content)
+
+      set((state) => {
+        let files = upsertFileInWorkspaceTree(state.files, normalized, content)
+        if (fileId !== normalized && fileId.startsWith('Untitled-')) {
+          files = removeFileNodeById(files, fileId)
+        }
+
+        const openFiles = replaceOpenFilesAfterSaveAs(state.openFiles, fileId, normalized)
+
+        let syntaxTrees = state.syntaxTrees
+        let symbolsByFile = state.symbolsByFile
+        let worktreeChanges = state.worktreeChanges
+        if (fileId !== normalized) {
+          if (state.syntaxTrees[fileId] !== undefined) {
+            syntaxTrees = { ...state.syntaxTrees }
+            syntaxTrees[normalized] = syntaxTrees[fileId]
+            delete syntaxTrees[fileId]
+          }
+          if (state.symbolsByFile[fileId] !== undefined) {
+            symbolsByFile = { ...state.symbolsByFile }
+            symbolsByFile[normalized] = symbolsByFile[fileId]
+            delete symbolsByFile[fileId]
+          }
+          if (state.worktreeChanges[fileId] !== undefined) {
+            worktreeChanges = { ...state.worktreeChanges }
+            const ch = worktreeChanges[fileId]
+            delete worktreeChanges[fileId]
+            worktreeChanges[normalized] = { ...ch, fileId: normalized }
+          }
+        }
+
+        return {
+          files,
+          fileHandles: { ...state.fileHandles, [normalized]: fileHandle },
+          activeFileId: normalized,
+          openFiles,
+          syntaxTrees,
+          symbolsByFile,
+          worktreeChanges,
+        }
+      })
+      return { ok: true, fileId: normalized }
+    } catch (err) {
+      console.error('saveFileAsInWorkspace failed', err)
+      return { ok: false, error: err instanceof Error ? err.message : 'Save As failed' }
     }
   },
 

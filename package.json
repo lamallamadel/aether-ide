@@ -1,11 +1,17 @@
 {
   "name": "ide",
+  "description": "Aether Code IDE — prototype web IDE with optional Electron shell",
+  "author": "Aether",
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "electron/main.mjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:electron": "cross-env VITE_DESKTOP=1 tsc -b && cross-env VITE_DESKTOP=1 vite build",
+    "desktop:dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "desktop:build": "npm run build:electron && electron-builder --publish never",
     "lint": "eslint .",
     "docs:lint": "markdownlint \"README.md\" \"settings.md\" \"CONTRIBUTING.md\" \"docs/**/*.md\" \"DOC_REVIEW_2026-03-31.md\" --ignore \"docs/archive/**\"",
     "docs:check": "npm run docs:lint",
@@ -61,7 +67,45 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
     "vite": "^8.0.0-beta.13",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "dev.aether.ide",
+    "productName": "Aether IDE",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    }
   },
   "overrides": {
     "vite": "^8.0.0-beta.13"

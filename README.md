@@ -12,7 +12,7 @@ Application web inspirée de Sublime/Cursor, implémentée à partir des spécif
 - Panneau de chat IA (mock streaming + indicateur de saisie)
 - Palette de commandes : recherche fichiers + actions (Toggle Sidebar, Ask AI, Global Search, Mission Control)
 - Global Search : recherche contenu (TF‑IDF) / filename / Knowledge (GraphRAG “lazy” minimal via IndexedDB) + filtres (scope + extensions)
-- Settings : modal + préférences éditeur + AI Mode (Cloud/Local). Local active “Zero‑egress”
+- Settings : modal catégorisée (Theme, Editor, Languages, Servers, AI Privacy, Environment, Keybindings, Workspace, Extensions), recherche et persistance de section
 - Raccourcis : Ctrl/Cmd+K (palette), Ctrl/Cmd+B (sidebar), Ctrl/Cmd+L (IA), Ctrl/Cmd+, (settings)
 - Mission Control : worktree fantôme + diff + Accept/Reject + badge de risque (trivial/review/high)
 - StatusBar : métriques 16ms (Long Tasks) en temps réel
@@ -64,6 +64,21 @@ npm test
 ```bash
 npm run build
 ```
+
+## Application desktop (Electron)
+
+Après `npm install`, le même front est empaqueté avec **Electron** (processus principal : [`electron/main.mjs`](./electron/main.mjs), preload : [`electron/preload.mjs`](./electron/preload.mjs)).
+
+```bash
+npm run desktop:dev    # Lance Vite + une fenêtre Electron (serveur http://127.0.0.1:5173)
+npm run desktop:build  # Build Vite avec chemins relatifs + electron-builder → artefacts dans ./release/
+```
+
+- Le build desktop utilise `VITE_DESKTOP=1` pour fixer le `base` Vite à `./` (compatible avec `loadFile` et `file://`).
+- Dans l’UI, **File → Open Folder** et la persistance **`.aether/workspace.json`** fonctionnent comme dans le navigateur (File System Access dans le renderer Chromium).
+- `window.aetherDesktop` expose la plateforme et un hook IPC `pickWorkspaceRoot()` (chemin absolu) pour une future couche FS 100 % native.
+- CI : workflow [`.github/workflows/desktop.yml`](./.github/workflows/desktop.yml) (matrice Ubuntu / Windows / macOS). La signature des binaires (Windows/macOS) n’est pas configurée dans ce dépôt.
+- **Windows** : si `electron-builder` échoue en extrayant `winCodeSign` (symlinks), activer le **mode développeur** Windows ou lancer le terminal en administrateur ; la config utilise `signAndEditExecutable: false` et `npmRebuild: false` pour limiter ces dépendances.
 
 ## Limitations connues
 - **Chat IA** : utilise uniquement GraphRAG (retrieval). Pas de génération LLM — les réponses sont des snippets formatés, pas un vrai dialogue.

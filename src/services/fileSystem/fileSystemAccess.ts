@@ -1,6 +1,17 @@
 import type { FileNode } from '../../domain/fileNode'
 
-const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', '.nuxt', '__pycache__', '.venv', 'venv'])
+const EXCLUDED_DIRS = new Set([
+  'node_modules',
+  '.git',
+  '.aether',
+  'dist',
+  'build',
+  '.next',
+  '.nuxt',
+  '__pycache__',
+  '.venv',
+  'venv',
+])
 
 const MAX_FILES = 1000
 const MAX_DEPTH = 10

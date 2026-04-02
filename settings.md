@@ -13,6 +13,8 @@ Important context: this repository is currently a **frontend-only Vite + React**
   - [4.2 Global Search settings (indexing & performance)](#42-global-search-settings-indexing--performance)
   - [4.3 Mission Control settings](#43-mission-control-settings)
   - [4.4 Tooling & system settings](#44-tooling--system-settings)
+  - [4.5 Workspace project metadata (`.aether/`)](#45-workspace-project-metadata-aether)
+  - [4.6 Desktop shell (Electron)](#46-desktop-shell-electron)
 - [5. Database configurations](#5-database-configurations)
 - [6. API keys and secrets](#6-api-keys-and-secrets)
 - [7. Logging levels](#7-logging-levels)
@@ -81,6 +83,7 @@ These values behave like **feature flags and default preferences**. They are int
 | `aiPanelVisible` | `boolean` | `true` | Shows/hides AI chat panel | `true \| false` | `false` |
 | `commandPaletteOpen` | `boolean` | `false` | Opens/closes command palette modal | `true \| false` | `true` |
 | `globalSearchOpen` | `boolean` | `false` | Opens/closes Global Search modal | `true \| false` | `true` |
+| `settingsCategory` | `SettingsCategory` | `'editor'` | Active category in the Settings modal | `theme \| editor \| languages \| servers \| aiPrivacy \| environment \| keybindings \| workspace \| extensions` | `'servers'` |
 | `missionControlOpen` | `boolean` | `false` | Opens/closes Mission Control modal | `true \| false` | `true` |
 | `worktreeChanges` | `Record<string, Change>` | `{}` | Pending “worktree” changes (Mission Control) | Keys are `fileId` | `{ "App.tsx": {...} }` |
 | `lspMode` | `'embedded' \| 'external' \| 'auto'` | `'embedded'` | Runtime mode for Aether LSP | embedded/external/auto | `'auto'` |
@@ -108,6 +111,17 @@ These values behave like **feature flags and default preferences**. They are int
 - Priority order: **workspace overrides > runtime defaults > fallback values**.
 - Runtime is loaded from client-safe vars (`VITE_*`) through a centralized loader.
 - Workspace environment is built when a project directory is opened and can be reset from Settings.
+
+### Settings navigation model
+- Settings modal is organized by categories (Theme, Editor, Languages, Servers, AI Privacy, Environment, Keybindings, Workspace, Extensions).
+- `openSettings({ open, category? })` opens/closes the modal and can target a specific category.
+- Last selected category is persisted in browser storage under `aether:settingsCategory`.
+
+### Save and Save As behavior (workspace-only)
+- `Save` writes to disk only when the active file is linked to a workspace file handle.
+- `Save As` creates a real file in the opened workspace from a relative project path (folders are created when needed).
+- No download fallback is used for `Save` or `Save As`.
+- Without an opened folder/workspace handle, saving is blocked and the user must run **Open Folder** first.
 
 ### 4.2 Global Search settings (indexing & performance)
 Locations:
@@ -181,6 +195,33 @@ Location: [eslint.config.js](./eslint.config.js)
 | `globalIgnores` | `string[]` | `["dist"]` | Paths ignored by ESLint | globs | add `coverage` |
 | `languageOptions.ecmaVersion` | `number` | `2020` | JS syntax level | valid ECMAScript year | `2022` |
 | `languageOptions.globals` | `object` | `globals.browser` | Global variables allowed | ESLint globals map | add `node` globals |
+
+### 4.5 Workspace project metadata (`.aether/`)
+When a project folder is opened via the File System Access API, the app reads and may create/update a small JSON file at the workspace root:
+
+| Path | Role |
+|------|------|
+| `.aether/workspace.json` | Persists **workspace-level environment overrides** (`aiMode`, `lspMode`, `externalLspEndpoint`) merged on top of Vite/runtime defaults (see [workspaceProjectConfig.ts](./src/config/workspaceProjectConfig.ts)). |
+
+Details:
+
+- **Format**: `{ "version": 1, "overrides": { ... } }`. Unknown `version` values are rejected on read; invalid override fields are ignored.
+- **Write triggers**: changing AI mode, LSP mode, or external LSP endpoint while a folder is open; using **Reset workspace environment** writes empty overrides and restores resolved values from runtime defaults.
+- **File tree**: `.aether` is excluded from the recursive workspace scan (same category as `.git` / `node_modules`) so the explorer stays focused on source; the file is still accessed through the directory handle.
+- **Runtime `mode`**: `development` / `staging` / `production` remains defined at **build time** (`import.meta.env`); it is not stored in `workspace.json`.
+- **Git**: Add `.aether/` to `.gitignore` if overrides must stay machine-local; commit `.aether/workspace.json` if the team should share the same defaults (see comment in [.gitignore](./.gitignore)).
+
+### 4.6 Desktop shell (Electron)
+Optional **desktop** build wraps the same Vite UI in Chromium (see [`electron/main.mjs`](./electron/main.mjs)):
+
+| Piece | Role |
+|-------|------|
+| `npm run desktop:dev` | Dev server + Electron window loading `http://127.0.0.1:5173`. |
+| `npm run build:electron` / `npm run desktop:build` | Sets `VITE_DESKTOP=1` so Vite `base` is `./`; packaged app loads `dist/index.html` via `loadFile`. |
+| [`electron/preload.mjs`](./electron/preload.mjs) | Exposes `window.aetherDesktop` (`kind`, `platform`, `pickWorkspaceRoot` IPC). |
+| [`workspaceBackend.ts`](./src/services/fileSystem/workspaceBackend.ts) | Detects `browser` vs `electron` for UI (e.g. Settings → Environment → Host shell). |
+
+Workspace overrides in `.aether/workspace.json` apply the same way as in the browser once a folder is opened (File System Access in the renderer). A future native FS layer could use the IPC path from `pickWorkspaceRoot()` instead of browser handles.
 
 ## 5. Database configurations
 

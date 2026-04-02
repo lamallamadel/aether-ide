@@ -3,8 +3,8 @@ import { useEditorStore } from '../state/editorStore'
 import { useShallow } from 'zustand/react/shallow'
 
 export function ActivityBar() {
-  const { setCommandPaletteOpen, toggleAiPanel, setSettingsOpen, toggleSidebar, toggleTerminalPanel } = useEditorStore(
-    useShallow((s) => ({ setCommandPaletteOpen: s.setCommandPaletteOpen, toggleAiPanel: s.toggleAiPanel, setSettingsOpen: s.setSettingsOpen, toggleSidebar: s.toggleSidebar, toggleTerminalPanel: s.toggleTerminalPanel }))
+  const { setCommandPaletteOpen, toggleAiPanel, openSettings, toggleSidebar, toggleTerminalPanel } = useEditorStore(
+    useShallow((s) => ({ setCommandPaletteOpen: s.setCommandPaletteOpen, toggleAiPanel: s.toggleAiPanel, openSettings: s.openSettings, toggleSidebar: s.toggleSidebar, toggleTerminalPanel: s.toggleTerminalPanel }))
   )
 
   return (
@@ -61,7 +61,7 @@ export function ActivityBar() {
         type="button"
         tabIndex={0}
         aria-label="Open Settings"
-        onClick={() => setSettingsOpen(true)}
+        onClick={() => openSettings({ open: true })}
         className="p-2 text-gray-500 hover:text-white transition-colors activity-item"
       >
         <Sliders size={20} strokeWidth={1.5} />

@@ -2,6 +2,7 @@ import { Bot, CornerDownLeft, Eye, EyeOff, FileCode, Search, Settings, Terminal 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FileNode } from '../domain/fileNode'
 import { useShallow } from 'zustand/react/shallow'
+import { SETTINGS_CATEGORIES } from '../config/settingsCategories'
 import { useEditorStore } from '../state/editorStore'
 
 function getAllFiles(nodes: FileNode[]): FileNode[] {
@@ -24,7 +25,7 @@ export function CommandPalette() {
     sidebarVisible,
     aiPanelVisible,
     setGlobalSearchOpen,
-    setSettingsOpen,
+    openSettings,
     setMissionControlOpen,
   } = useEditorStore(
     useShallow((s) => ({
@@ -37,7 +38,7 @@ export function CommandPalette() {
       sidebarVisible: s.sidebarVisible,
       aiPanelVisible: s.aiPanelVisible,
       setGlobalSearchOpen: s.setGlobalSearchOpen,
-      setSettingsOpen: s.setSettingsOpen,
+      openSettings: s.openSettings,
       setMissionControlOpen: s.setMissionControlOpen,
     }))
   )
@@ -87,10 +88,17 @@ export function CommandPalette() {
         name: 'Open Settings',
         type: 'command' as const,
         icon: <Settings size={14} />,
-        action: () => setSettingsOpen(true),
+        action: () => openSettings({ open: true }),
       },
+      ...SETTINGS_CATEGORIES.map((category) => ({
+        id: `cmd-settings-${category.id}`,
+        name: `Preferences: ${category.label}`,
+        type: 'command' as const,
+        icon: <Settings size={14} />,
+        action: () => openSettings({ open: true, category: category.id }),
+      })),
     ],
-    [aiPanelVisible, setGlobalSearchOpen, setMissionControlOpen, setSettingsOpen, sidebarVisible, toggleAiPanel, toggleSidebar]
+    [aiPanelVisible, openSettings, setGlobalSearchOpen, setMissionControlOpen, sidebarVisible, toggleAiPanel, toggleSidebar]
   )
 
   const filteredCommands = useMemo(() => {

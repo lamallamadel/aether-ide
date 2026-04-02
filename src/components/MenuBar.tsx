@@ -1,35 +1,23 @@
 import { Menu, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { SETTINGS_CATEGORIES } from '../config/settingsCategories'
 import { useEditorStore } from '../state/editorStore'
 import { isSupported, pickDirectory } from '../services/fileSystem/fileSystemAccess'
 
-type MenuKey = 'File' | 'Edit' | 'Selection' | 'View' | 'Go' | 'Run' | 'Terminal' | 'Help'
+type MenuKey = 'File' | 'Edit' | 'Selection' | 'View' | 'Go' | 'Run' | 'Terminal' | 'Preferences' | 'Help'
 
 type MenuItem =
   | { kind: 'action'; id: string; label: string; action: () => void; checked?: boolean }
   | { kind: 'separator'; id: string }
 
-const downloadTextFile = (filename: string, content: string) => {
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
-}
-
 export function MenuBar() {
   const {
     activeFileId,
-    getFileContent,
     setCommandPaletteOpen,
     setGlobalSearchOpen,
     setGoToSymbolOpen,
-    setSettingsOpen,
+    openSettings,
     commandPaletteOpen,
     globalSearchOpen,
     settingsOpen,
@@ -47,16 +35,16 @@ export function MenuBar() {
     executeEditorCommand,
     loadProjectFromDirectory,
     saveFileToDisk,
+    saveFileAsInWorkspace,
     hasFileHandle,
     toggleTerminalPanel,
   } = useEditorStore(
     useShallow((s) => ({
       activeFileId: s.activeFileId,
-      getFileContent: s.getFileContent,
       setCommandPaletteOpen: s.setCommandPaletteOpen,
       setGlobalSearchOpen: s.setGlobalSearchOpen,
       setGoToSymbolOpen: s.setGoToSymbolOpen,
-      setSettingsOpen: s.setSettingsOpen,
+      openSettings: s.openSettings,
       commandPaletteOpen: s.commandPaletteOpen,
       globalSearchOpen: s.globalSearchOpen,
       settingsOpen: s.settingsOpen,
@@ -74,6 +62,7 @@ export function MenuBar() {
       executeEditorCommand: s.executeEditorCommand,
       loadProjectFromDirectory: s.loadProjectFromDirectory,
       saveFileToDisk: s.saveFileToDisk,
+      saveFileAsInWorkspace: s.saveFileAsInWorkspace,
       hasFileHandle: s.hasFileHandle,
       toggleTerminalPanel: s.toggleTerminalPanel,
     }))
@@ -92,6 +81,7 @@ export function MenuBar() {
     Go: null,
     Run: null,
     Terminal: null,
+    Preferences: null,
     Help: null,
   })
 
@@ -135,8 +125,7 @@ export function MenuBar() {
               const ok = await saveFileToDisk(activeFileId)
               announce(ok ? `Saved ${activeFileId}` : 'Save failed')
             } else {
-              downloadTextFile(activeFileId, getFileContent(activeFileId))
-              announce(`Downloaded ${activeFileId}`)
+              announce('No workspace handle for this file. Use Save As in workspace.')
             }
           },
         },
@@ -149,8 +138,16 @@ export function MenuBar() {
               announce('No active file to save')
               return
             }
-            downloadTextFile(activeFileId, getFileContent(activeFileId))
-            announce(`Downloaded ${activeFileId}`)
+            const suggestion = activeFileId.includes('/') ? activeFileId : `src/${activeFileId}`
+            const targetPath = window.prompt('Save As (workspace relative path)', suggestion)?.trim()
+            if (!targetPath) {
+              announce('Save As cancelled')
+              return
+            }
+            void saveFileAsInWorkspace(activeFileId, targetPath).then((result) => {
+              if (result.ok && result.fileId) announce(`Saved as ${result.fileId}`)
+              else announce(result.error ?? 'Save As failed')
+            })
           },
         },
         { kind: 'separator', id: 'file-sep-2' },
@@ -191,7 +188,7 @@ export function MenuBar() {
         { kind: 'separator', id: 'view-sep-3' },
         { kind: 'action', id: 'view-sidebar', label: 'Toggle Sidebar', action: () => toggleSidebar() },
         { kind: 'action', id: 'view-ai', label: 'Toggle AI Panel', action: () => toggleAiPanel() },
-        { kind: 'action', id: 'view-settings', label: 'Open Settings', action: () => setSettingsOpen(true) },
+        { kind: 'action', id: 'view-settings', label: 'Open Settings', action: () => openSettings({ open: true }) },
       ],
       Go: [
         { kind: 'action', id: 'go-file', label: 'Go to File...', action: () => setCommandPaletteOpen(true) },
@@ -203,23 +200,33 @@ export function MenuBar() {
       Terminal: [
         { kind: 'action', id: 'term-new', label: 'New Terminal', action: () => toggleTerminalPanel() },
       ],
+      Preferences: [
+        { kind: 'action', id: 'prefs-open', label: 'Open Settings', action: () => openSettings({ open: true }) },
+        { kind: 'separator', id: 'prefs-sep-1' },
+        ...SETTINGS_CATEGORIES.map((category) => ({
+          kind: 'action' as const,
+          id: `prefs-${category.id}`,
+          label: category.label,
+          action: () => openSettings({ open: true, category: category.id }),
+        })),
+      ],
       Help: [
         { kind: 'action', id: 'help-welcome', label: 'Welcome', action: () => announce('Welcome') },
         { kind: 'action', id: 'help-docs', label: 'Documentation', action: () => announce('See README.md') },
-        { kind: 'action', id: 'help-about', label: 'About', action: () => setSettingsOpen(true) },
+        { kind: 'action', id: 'help-about', label: 'About', action: () => openSettings({ open: true }) },
       ],
     }),
     [
       activeFileId,
       createUntitledFile,
-      getFileContent,
       hasFileHandle,
       loadProjectFromDirectory,
       saveFileToDisk,
+      saveFileAsInWorkspace,
       setCommandPaletteOpen,
       setGlobalSearchOpen,
       setGoToSymbolOpen,
-      setSettingsOpen,
+      openSettings,
       toggleTerminalPanel,
       toggleAiPanel,
       toggleSidebar,

@@ -2,7 +2,11 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+const desktop = process.env.VITE_DESKTOP === '1'
+
 export default defineConfig({
+  /** Chemins relatifs pour `loadFile` Electron ; `/` pour déploiement web habituel. */
+  base: desktop ? './' : '/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
