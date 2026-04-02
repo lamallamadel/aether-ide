@@ -218,10 +218,11 @@ Optional **desktop** build wraps the same Vite UI in Chromium (see [`electron/ma
 |-------|------|
 | `npm run desktop:dev` | Dev server + Electron window loading `http://127.0.0.1:5173`. |
 | `npm run build:electron` / `npm run desktop:build` | Sets `VITE_DESKTOP=1` so Vite `base` is `./`; packaged app loads `dist/index.html` via `loadFile`. |
-| [`electron/preload.mjs`](./electron/preload.mjs) | Exposes `window.aetherDesktop` (`kind`, `platform`, `pickWorkspaceRoot` IPC). |
+| [`electron/preload.mjs`](./electron/preload.mjs) | Exposes `window.aetherDesktop` (`kind`, `platform`, `pickWorkspaceRoot`, `loadWorkspace`, `writeFileRelative`, `readTextRelative`). |
+| [`electron/workspaceNative.mjs`](./electron/workspaceNative.mjs) | Main-process helpers: recursive tree (same ignore rules as browser), safe path resolution under workspace root. |
 | [`workspaceBackend.ts`](./src/services/fileSystem/workspaceBackend.ts) | Detects `browser` vs `electron` for UI (e.g. Settings → Environment → Host shell). |
 
-Workspace overrides in `.aether/workspace.json` apply the same way as in the browser once a folder is opened (File System Access in the renderer). A future native FS layer could use the IPC path from `pickWorkspaceRoot()` instead of browser handles.
+Workspace overrides in `.aether/workspace.json` use the same schema in the browser (File System Access handles) and in Electron (native read/write under the opened absolute path). **Open Folder** in Electron prefers the native folder picker and IPC-backed load/save instead of relying on `FileSystemDirectoryHandle` in the renderer.
 
 ## 5. Database configurations
 
