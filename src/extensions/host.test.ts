@@ -28,6 +28,44 @@ describe('ExtensionHost', () => {
     expect(host.hasPermission('workspace.read')).toBe(true)
   })
 
+  it('met state error si activate lance', async () => {
+    const host = new ExtensionHost()
+    host.register({
+      manifest: {
+        id: 'ext.fail',
+        name: 'fail',
+        version: '1',
+        runtime: 'in-process',
+        trusted: true,
+        activationEvents: ['onStartup'],
+        permissions: [],
+      },
+      activate: () => {
+        throw new Error('boom')
+      },
+    })
+    await host.activateByEvent('onStartup')
+    expect(host.list().find((e) => e.module.manifest.id === 'ext.fail')?.state).toBe('error')
+  })
+
+  it('executeCommand retourne false sans permission workspace.read', async () => {
+    const host = new ExtensionHost()
+    host.register({
+      manifest: {
+        id: 'ext.noperm',
+        name: 'x',
+        version: '1',
+        runtime: 'in-process',
+        trusted: true,
+        activationEvents: ['onStartup'],
+        permissions: [],
+      },
+      activate: () => {},
+    })
+    await host.activateByEvent('onStartup')
+    expect(await host.executeCommand('any')).toBe(false)
+  })
+
   it('activates extension on language event', async () => {
     const host = new ExtensionHost()
     host.register({

@@ -6,9 +6,12 @@ import { useEditorStore } from '../state/editorStore'
 import { MenuBar } from './MenuBar'
 import * as fsAccess from '../services/fileSystem/fileSystemAccess'
 
+const getWorkspaceShellKind = vi.fn(() => 'browser')
+const pickNativeWorkspaceRootPath = vi.fn(() => Promise.resolve(null))
+
 vi.mock('../services/fileSystem/workspaceBackend', () => ({
-  getWorkspaceShellKind: vi.fn(() => 'browser'),
-  pickNativeWorkspaceRootPath: vi.fn(() => Promise.resolve(null)),
+  getWorkspaceShellKind: () => getWorkspaceShellKind(),
+  pickNativeWorkspaceRootPath: () => pickNativeWorkspaceRootPath(),
 }))
 
 vi.mock('../services/fileSystem/fileSystemAccess', () => ({
@@ -22,6 +25,8 @@ vi.mock('./CodeEditor', () => ({
 
 beforeEach(() => {
   vi.restoreAllMocks()
+  getWorkspaceShellKind.mockReturnValue('browser')
+  pickNativeWorkspaceRootPath.mockResolvedValue(null)
   useEditorStore.setState({
     files: INITIAL_FILES,
     activeFileId: 'App.tsx',
@@ -34,6 +39,9 @@ beforeEach(() => {
     missionControlOpen: false,
     sidebarVisible: true,
     aiPanelVisible: false,
+    editorSplit: 'none',
+    terminalDock: 'workspace',
+    workspaceRootPath: null,
   })
 })
 
@@ -241,6 +249,119 @@ describe('MenuBar', () => {
     await vi.waitFor(() => {
       expect(screen.getByText(/Saved as src\/new-name\.ts/)).toBeInTheDocument()
     })
+  })
+
+  it('View > Split Editor Down passe en lignes', async () => {
+    const user = userEvent.setup()
+    render(<MenuBar />)
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Split Editor Down' }))
+    expect(useEditorStore.getState().editorSplit).toBe('rows')
+  })
+
+  it('Run > npm annonce si runNpmScript absent', async () => {
+    const user = userEvent.setup()
+    getWorkspaceShellKind.mockReturnValue('electron')
+    useEditorStore.setState({ workspaceRootPath: '/proj' })
+    const prev = window.aetherDesktop
+    window.aetherDesktop = {
+      ...(prev ?? {}),
+      kind: 'electron',
+      platform: 'win32',
+      versions: { electron: '1', chrome: '1' },
+      pickWorkspaceRoot: vi.fn(),
+      loadWorkspace: vi.fn(),
+      writeFileRelative: vi.fn(),
+      readTextRelative: vi.fn(),
+    } as unknown as typeof window.aetherDesktop
+    render(<MenuBar />)
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+    await user.click(screen.getByRole('menuitem', { name: /npm run dev/ }))
+    expect(screen.getByText(/Run bridge unavailable/)).toBeInTheDocument()
+    window.aetherDesktop = prev
+  })
+
+  it('Help > Welcome affiche une annonce', async () => {
+    const user = userEvent.setup()
+    render(<MenuBar />)
+    await user.click(screen.getByRole('button', { name: 'Help' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Welcome' }))
+    const live = screen.getByRole('navigation', { name: 'Top menu' }).parentElement?.querySelector('[aria-live="polite"]')
+    expect(live?.textContent).toBe('Welcome')
+  })
+
+  it('View > Split Editor Right passe en colonnes', async () => {
+    const user = userEvent.setup()
+    render(<MenuBar />)
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Split Editor Right' }))
+    expect(useEditorStore.getState().editorSplit).toBe('columns')
+  })
+
+  it('View > Join Editor remet split à none', async () => {
+    const user = userEvent.setup()
+    useEditorStore.setState({ editorSplit: 'columns' })
+    render(<MenuBar />)
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    await user.click(screen.getByRole('menuitem', { name: /Join Editor/ }))
+    expect(useEditorStore.getState().editorSplit).toBe('none')
+  })
+
+  it('View > Terminal dock bascule editor/workspace', async () => {
+    const user = userEvent.setup()
+    render(<MenuBar />)
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    await user.click(screen.getByRole('menuitem', { name: /Terminal: dock under editor/ }))
+    expect(useEditorStore.getState().terminalDock).toBe('editor')
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    await user.click(screen.getByRole('menuitem', { name: /Terminal: dock to workspace bar/ }))
+    expect(useEditorStore.getState().terminalDock).toBe('workspace')
+  })
+
+  it('Run > npm annonce hors Electron', async () => {
+    const user = userEvent.setup()
+    getWorkspaceShellKind.mockReturnValue('browser')
+    render(<MenuBar />)
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+    await user.click(screen.getByRole('menuitem', { name: /npm run dev/ }))
+    expect(screen.getByText(/Packaged npm run requires Electron/)).toBeInTheDocument()
+  })
+
+  it('Run > npm sans workspace annonce', async () => {
+    const user = userEvent.setup()
+    getWorkspaceShellKind.mockReturnValue('electron')
+    useEditorStore.setState({ workspaceRootPath: null })
+    render(<MenuBar />)
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+    await user.click(screen.getByRole('menuitem', { name: /npm run dev/ }))
+    expect(screen.getByText(/Open a workspace folder first/)).toBeInTheDocument()
+  })
+
+  it('Run > npm appelle runNpmScript en Electron avec racine', async () => {
+    const user = userEvent.setup()
+    getWorkspaceShellKind.mockReturnValue('electron')
+    useEditorStore.setState({ workspaceRootPath: '/proj' })
+    const runNpmScript = vi.fn().mockResolvedValue({ message: 'ok' })
+    const prev = window.aetherDesktop
+    window.aetherDesktop = {
+      ...(prev ?? {}),
+      kind: 'electron',
+      platform: 'win32',
+      versions: { electron: '1', chrome: '1' },
+      pickWorkspaceRoot: vi.fn(),
+      loadWorkspace: vi.fn(),
+      writeFileRelative: vi.fn(),
+      readTextRelative: vi.fn(),
+      runNpmScript,
+    } as unknown as typeof window.aetherDesktop
+    render(<MenuBar />)
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+    await user.click(screen.getByRole('menuitem', { name: /npm run dev/ }))
+    expect(runNpmScript).toHaveBeenCalledWith('/proj', 'dev')
+    await vi.waitFor(() => {
+      expect(screen.getByText('ok')).toBeInTheDocument()
+    })
+    window.aetherDesktop = prev
   })
 
   it('File > Open Folder loads project when supported and directory picked', async () => {

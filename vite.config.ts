@@ -43,12 +43,23 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      exclude: ['node_modules/', '**/*.test.ts', '**/*.test.tsx', 'src/test/'],
+      /** Workers chargés via `new Worker(..., { type: 'module' })` : non exécutés sous Vitest ; les exclure évite de fausser la moyenne. */
+      exclude: [
+        'node_modules/',
+        '**/*.test.ts',
+        '**/*.test.tsx',
+        'src/test/',
+        '**/*.worker.ts',
+      ],
+      /**
+       * Gate CI : ~80 % lignes (atteint) ; statements/functions ~79 % avec la base actuelle ;
+       * branches ~69 % (UI + erreurs — palier réaliste du plan, cible 70–78 %).
+       */
       thresholds: {
-        statements: 65,
-        branches: 55,
-        functions: 64,
-        lines: 65,
+        statements: 78,
+        branches: 69,
+        functions: 78,
+        lines: 80,
       },
     },
   },

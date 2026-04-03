@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { INITIAL_FILES } from '../domain/fileNode'
@@ -6,7 +6,10 @@ import { useEditorStore } from '../state/editorStore'
 import { xtermMocks } from '../test/setup'
 import { TerminalPanel } from './TerminalPanel'
 
+const originalDesktop = window.aetherDesktop
+
 beforeEach(() => {
+  window.aetherDesktop = originalDesktop
   useEditorStore.setState({
     files: INITIAL_FILES,
     terminalPanelOpen: false,
@@ -61,6 +64,74 @@ describe('TerminalPanel', () => {
     expect(xtermMocks.writeln).toHaveBeenCalledWith(
       expect.stringContaining('Available commands: clear, echo, ls, pwd, help')
     )
+  })
+
+  it('applique les classes embedded (h-full) quand embedded', () => {
+    useEditorStore.setState({ terminalPanelOpen: true })
+    const { container } = render(<TerminalPanel embedded />)
+    const root = container.firstChild as HTMLElement
+    expect(root.className).toMatch(/h-full/)
+  })
+
+  it('écrit le flux onTerminalStream dans le terminal', async () => {
+    const unsub = vi.fn()
+    const onTerminalStream = vi.fn((cb: (data: { text: string }) => void) => {
+      queueMicrotask(() => cb({ text: '[stream]' }))
+      return unsub
+    })
+    window.aetherDesktop = {
+      ...(originalDesktop ?? {}),
+      kind: 'electron',
+      platform: 'win32',
+      versions: { electron: '1', chrome: '1' },
+      pickWorkspaceRoot: vi.fn(),
+      loadWorkspace: vi.fn(),
+      writeFileRelative: vi.fn(),
+      readTextRelative: vi.fn(),
+      onTerminalStream,
+    } as unknown as typeof window.aetherDesktop
+    useEditorStore.setState({ terminalPanelOpen: true })
+    render(<TerminalPanel />)
+    expect(onTerminalStream).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(xtermMocks.write).toHaveBeenCalledWith('[stream]')
+    })
+  })
+
+  it('exécute clear, ls, pwd et commande inconnue', () => {
+    useEditorStore.setState({ terminalPanelOpen: true })
+    render(<TerminalPanel />)
+    const onData = xtermMocks.onData.mock.calls[0]?.[0] as ((data: string) => void) | undefined
+    expect(onData).toBeDefined()
+    if (!onData) return
+
+    for (const c of 'clear') onData(c)
+    onData('\r')
+    expect(xtermMocks.clear).toHaveBeenCalled()
+
+    for (const c of 'ls') onData(c)
+    onData('\r')
+    expect(xtermMocks.writeln).toHaveBeenCalledWith(expect.stringMatching(/package\.json|README/i))
+
+    for (const c of 'pwd') onData(c)
+    onData('\r')
+    expect(xtermMocks.writeln).toHaveBeenCalledWith(expect.stringMatching(/aether-project|~/))
+
+    for (const c of 'nope_cmd') onData(c)
+    onData('\r')
+    expect(xtermMocks.writeln).toHaveBeenCalledWith(expect.stringContaining('Command not found'))
+  })
+
+  it('gère backspace sur la ligne courante', () => {
+    useEditorStore.setState({ terminalPanelOpen: true })
+    render(<TerminalPanel />)
+    const onData = xtermMocks.onData.mock.calls[0]?.[0] as ((data: string) => void) | undefined
+    expect(onData).toBeDefined()
+    if (!onData) return
+    onData('a')
+    onData('b')
+    onData('\u007F')
+    expect(xtermMocks.write).toHaveBeenCalledWith('\b \b')
   })
 
   it('runs echo command', () => {

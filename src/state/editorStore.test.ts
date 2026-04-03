@@ -18,6 +18,12 @@ vi.mock('../config/workspaceProjectConfig', async (importOriginal) => {
   }
 })
 
+vi.mock('../services/fileSystem/electronNativeWorkspace', () => ({
+  nativeLoadWorkspace: vi.fn(),
+  nativeReadTextRelative: vi.fn(),
+  nativeWriteFileRelative: vi.fn(),
+}))
+
 vi.mock('../services/fileSystem/fileSystemAccess', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/fileSystem/fileSystemAccess')>()
   const mockFiles: FileNode[] = [
@@ -463,6 +469,74 @@ describe('editorStore', () => {
       lspMode: 'embedded',
       aiMode: 'local',
     })
+  })
+
+  it('setEditorSplit, setActiveEditorPane, setEditorSplitRatio, setTerminalDock', () => {
+    const { setEditorSplit, setActiveEditorPane, setEditorSplitRatio, setTerminalDock } = useEditorStore.getState()
+    setEditorSplit('columns')
+    expect(useEditorStore.getState().editorSplit).toBe('columns')
+    setActiveEditorPane('secondary')
+    expect(useEditorStore.getState().activeEditorPane).toBe('secondary')
+    setEditorSplitRatio(0.35)
+    expect(useEditorStore.getState().editorSplitRatio).toBe(0.35)
+    setTerminalDock('editor')
+    expect(useEditorStore.getState().terminalDock).toBe('editor')
+  })
+
+  it('loadProjectFromNativePath charge le workspace et le premier fichier', async () => {
+    const { nativeLoadWorkspace } = await import('../services/fileSystem/electronNativeWorkspace')
+    const wpc = await import('../config/workspaceProjectConfig')
+    vi.mocked(nativeLoadWorkspace).mockResolvedValueOnce({
+      files: [
+        {
+          id: 'root',
+          name: 'native',
+          type: 'folder',
+          isOpen: true,
+          children: [
+            {
+              id: 'native/a.ts',
+              name: 'a.ts',
+              type: 'file',
+              language: 'typescript',
+              content: 'export const x = 1',
+            },
+          ],
+        },
+      ],
+      rootPath: '/abs/native',
+      workspaceLabel: 'native-ws',
+    })
+    vi.spyOn(wpc, 'readWorkspaceOverridesFromNativeRoot').mockResolvedValueOnce({})
+    const { loadProjectFromNativePath } = useEditorStore.getState()
+    await loadProjectFromNativePath('/abs/native')
+    const state = useEditorStore.getState()
+    expect(state.workspaceRootPath).toBe('/abs/native')
+    expect(state.activeWorkspaceId).toBe('native-ws')
+    expect(state.activeFileId).toBe('native/a.ts')
+    expect(state.workspaceEnvironmentStatus).toBe('ready')
+  })
+
+  it('loadProjectFromNativePath dégrade en cas d’erreur', async () => {
+    const { nativeLoadWorkspace } = await import('../services/fileSystem/electronNativeWorkspace')
+    vi.mocked(nativeLoadWorkspace).mockRejectedValueOnce(new Error('disk'))
+    const { loadProjectFromNativePath } = useEditorStore.getState()
+    await loadProjectFromNativePath('/bad')
+    expect(useEditorStore.getState().indexingError).toBe('disk')
+    expect(useEditorStore.getState().workspaceEnvironmentStatus).toBe('degraded')
+  })
+
+  it('saveFileToDisk utilise nativeWriteFileRelative quand workspaceRootPath est défini', async () => {
+    const { nativeWriteFileRelative } = await import('../services/fileSystem/electronNativeWorkspace')
+    vi.mocked(nativeWriteFileRelative).mockResolvedValueOnce(undefined)
+    useEditorStore.setState({
+      workspaceRootPath: '/proj',
+      fileHandles: {},
+    })
+    const { saveFileToDisk } = useEditorStore.getState()
+    const ok = await saveFileToDisk('App.tsx')
+    expect(ok).toBe(true)
+    expect(nativeWriteFileRelative).toHaveBeenCalled()
   })
 
   it('resetWorkspaceEnvironment avec dossier ouvert écrit des overrides vides', async () => {

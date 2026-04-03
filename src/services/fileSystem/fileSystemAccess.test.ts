@@ -1,5 +1,33 @@
-import { describe, expect, it, vi } from 'vitest'
-import { isSupported, readFileContent, readDirectoryRecursive, writeFileContent } from './fileSystemAccess'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { isSupported, pickDirectory, readFileContent, readDirectoryRecursive, writeFileContent } from './fileSystemAccess'
+
+describe('pickDirectory', () => {
+  const origPicker = window.showDirectoryPicker
+
+  afterEach(() => {
+    if (origPicker === undefined) {
+      delete (window as { showDirectoryPicker?: unknown }).showDirectoryPicker
+    } else {
+      window.showDirectoryPicker = origPicker
+    }
+  })
+
+  it('retourne null si File System Access non supporté', async () => {
+    delete (window as { showDirectoryPicker?: unknown }).showDirectoryPicker
+    await expect(pickDirectory()).resolves.toBeNull()
+  })
+
+  it('retourne null sur AbortError', async () => {
+    window.showDirectoryPicker = vi.fn().mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+    await expect(pickDirectory()).resolves.toBeNull()
+  })
+
+  it('retourne le handle choisi', async () => {
+    const handle = { name: 'proj' } as FileSystemDirectoryHandle
+    window.showDirectoryPicker = vi.fn().mockResolvedValue(handle)
+    await expect(pickDirectory()).resolves.toBe(handle)
+  })
+})
 
 describe('fileSystemAccess', () => {
   it('isSupported returns false when showDirectoryPicker is absent', () => {
@@ -69,6 +97,70 @@ describe('readDirectoryRecursive', () => {
       content: 'content',
     })
     expect(fileHandles['a.ts']).toBe(fileHandle)
+  })
+
+  it('lit un sous-dossier et assigne la langue', async () => {
+    const mockFile = { text: () => Promise.resolve('py') }
+    const pyHandle = {
+      kind: 'file' as const,
+      name: 'main.py',
+      getFile: () => Promise.resolve(mockFile),
+    }
+    const subDir = {
+      kind: 'directory' as const,
+      name: 'pkg',
+      values: vi.fn().mockImplementation(async function* () {
+        yield pyHandle
+      }),
+    }
+    const dirHandle = {
+      kind: 'directory' as const,
+      name: 'root',
+      values: vi.fn().mockImplementation(async function* () {
+        yield subDir
+      }),
+    } as unknown as FileSystemDirectoryHandle
+
+    const { files } = await readDirectoryRecursive(dirHandle)
+    const pkg = files[0].children?.find((c) => c.name === 'pkg')
+    expect(pkg?.type).toBe('folder')
+    const mainPy = pkg?.children?.[0]
+    expect(mainPy).toMatchObject({ name: 'main.py', language: 'python' })
+  })
+
+  it('remplace le contenu si lecture fichier échoue', async () => {
+    const badHandle = {
+      kind: 'file' as const,
+      name: 'bad.txt',
+      getFile: () => Promise.reject(new Error('read fail')),
+    }
+    const dirHandle = {
+      kind: 'directory' as const,
+      name: 'root',
+      values: vi.fn().mockImplementation(async function* () {
+        yield badHandle
+      }),
+    } as unknown as FileSystemDirectoryHandle
+    const { files } = await readDirectoryRecursive(dirHandle)
+    expect(files[0].children![0].content).toContain('Error reading')
+  })
+
+  it('respecte maxFiles', async () => {
+    const mkFile = (name: string) => ({
+      kind: 'file' as const,
+      name,
+      getFile: () => Promise.resolve({ text: () => Promise.resolve('x') }),
+    })
+    const dirHandle = {
+      kind: 'directory' as const,
+      name: 'root',
+      values: vi.fn().mockImplementation(async function* () {
+        yield mkFile('a.ts')
+        yield mkFile('b.ts')
+      }),
+    } as unknown as FileSystemDirectoryHandle
+    const { files } = await readDirectoryRecursive(dirHandle, { maxFiles: 1 })
+    expect(files[0].children?.filter((c) => c.type === 'file')).toHaveLength(1)
   })
 
   it('excludes node_modules', async () => {

@@ -1,6 +1,8 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { getAllChunks } from './graphragDb'
-import { buildChunksFromSymbols, graphragQuery } from './graphrag'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { vectorStore } from '../db/VectorStore'
+import { useEditorStore } from '../../state/editorStore'
+import { getAllChunks, upsertChunks } from './graphragDb'
+import { buildChunksFromSymbols, graphragQuery, ingestFile } from './graphrag'
 
 const mockChunks = [
   {
@@ -105,5 +107,50 @@ describe('graphragQuery with indexedDB', () => {
   it('returns empty when no matches', async () => {
     const result = await graphragQuery('xyznonexistenttoken123')
     expect(result).toEqual([])
+  })
+
+  it('fusionne résultats vectoriels et mots-clés', async () => {
+    vi.mocked(vectorStore.search).mockResolvedValueOnce([
+      {
+        id: 'vec1',
+        fileId: 'vec.ts',
+        content: 'vector only',
+        startLine: 0,
+        endLine: 3,
+        score: 0.9,
+      } as never,
+    ])
+    const result = await graphragQuery('hello', 5)
+    expect(result.some((r) => r.chunk.fileId === 'vec.ts')).toBe(true)
+    expect(result.some((r) => r.chunk.text.includes('hello'))).toBe(true)
+  })
+})
+
+describe('ingestFile', () => {
+  afterEach(() => {
+    useEditorStore.setState({ storageQuotaExceeded: false })
+  })
+
+  it('no-op sans indexedDB', async () => {
+    vi.stubGlobal('indexedDB', undefined)
+    await ingestFile('a.ts', 'x', [])
+    expect(vi.mocked(upsertChunks)).not.toHaveBeenCalled()
+  })
+
+  it('marque quota dépassé si upsertChunks lève QuotaExceededError', async () => {
+    vi.stubGlobal('indexedDB', {})
+    vi.mocked(upsertChunks).mockRejectedValueOnce(Object.assign(new Error('quota'), { name: 'QuotaExceededError' }))
+    await ingestFile('q.ts', 'c', [])
+    expect(useEditorStore.getState().storageQuotaExceeded).toBe(true)
+  })
+
+  it('marque quota si persistVectors lève QuotaExceededError', async () => {
+    vi.stubGlobal('indexedDB', {})
+    vi.mocked(upsertChunks).mockResolvedValueOnce(undefined)
+    vi.mocked(vectorStore.persistVectors).mockRejectedValueOnce(
+      Object.assign(new Error('quota'), { name: 'QuotaExceededError' })
+    )
+    await ingestFile('p.ts', 'content', [])
+    expect(useEditorStore.getState().storageQuotaExceeded).toBe(true)
   })
 })

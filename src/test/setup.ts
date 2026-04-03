@@ -78,6 +78,7 @@ export const xtermMocks = {
   open: vi.fn(),
   writeln: vi.fn(),
   write: vi.fn(),
+  clear: vi.fn(),
   loadAddon: vi.fn(),
   onData: vi.fn(),
   fit: vi.fn(),
@@ -88,6 +89,7 @@ vi.mock('@xterm/xterm', () => ({
     open = xtermMocks.open
     writeln = xtermMocks.writeln
     write = xtermMocks.write
+    clear = xtermMocks.clear
     loadAddon = xtermMocks.loadAddon
     onData = xtermMocks.onData
     dispose = xtermMocks.dispose
