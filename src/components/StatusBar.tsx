@@ -11,16 +11,48 @@ const AI_HEALTH_CONFIG: Record<AiHealthStatus, { color: string; label: string; p
 }
 
 export function StatusBar() {
-  const { editorFontSizePx, perf, activeFileId, aiHealth, indexingError, storageQuotaExceeded } = useEditorStore(
-    useShallow((s) => ({ editorFontSizePx: s.editorFontSizePx, perf: s.perf, activeFileId: s.activeFileId, aiHealth: s.aiHealth, indexingError: s.indexingError, storageQuotaExceeded: s.storageQuotaExceeded }))
+  const { editorFontSizePx, perf, activeFileId, aiHealth, indexingError, storageQuotaExceeded, remoteConnection, setRemotePickerOpen } = useEditorStore(
+    useShallow((s) => ({
+      editorFontSizePx: s.editorFontSizePx,
+      perf: s.perf,
+      activeFileId: s.activeFileId,
+      aiHealth: s.aiHealth,
+      indexingError: s.indexingError,
+      storageQuotaExceeded: s.storageQuotaExceeded,
+      remoteConnection: s.remoteConnection,
+      setRemotePickerOpen: s.setRemotePickerOpen,
+    }))
   )
 
   const languageLabel = activeFileId ? getLanguageLabel(activeFileId) : 'Plain Text'
   const healthConfig = AI_HEALTH_CONFIG[aiHealth]
 
+  const isRemoteConnected = remoteConnection?.status === 'connected'
+  const remoteLabel = isRemoteConnected
+    ? `WSL: ${remoteConnection.distro}`
+    : 'Open Remote'
+  const remoteTooltip = isRemoteConnected
+    ? `Connected to ${remoteConnection.distro} (WSL ${remoteConnection.wslVersion}) — ${remoteConnection.linuxRootPath}`
+    : 'Connect to WSL or remote host'
+
   return (
     <div className="h-7 text-primary-100 font-semibold flex items-center justify-between px-4 text-xs select-none z-10" style={{ backgroundColor: 'rgb(var(--color-primary-600))' }}>
       <div className="flex items-center gap-2">
+        {/* Remote indicator */}
+        <button
+          type="button"
+          className={`flex items-center gap-1 px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+            isRemoteConnected
+              ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+              : 'hover:bg-primary-500/20 text-primary-100'
+          }`}
+          title={remoteTooltip}
+          onClick={() => setRemotePickerOpen(true)}
+        >
+          <span className="font-mono text-[10px] font-bold">&gt;&lt;</span>
+          <span>{remoteLabel}</span>
+        </button>
+
         {indexingError && (
           <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200" title={indexingError}>
             <AlertTriangle size={12} />

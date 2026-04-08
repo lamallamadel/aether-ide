@@ -1,6 +1,6 @@
 import type { ExtractedSymbol, SerializedTree } from '../../services/syntax/syntaxTypes'
 
-export type YamlLspMode = 'embedded' | 'external' | 'auto'
+export type YamlLspMode = 'embedded' | 'external' | 'wsl' | 'auto'
 
 export type YamlDiagnostic = {
   message: string

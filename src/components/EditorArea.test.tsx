@@ -83,9 +83,9 @@ describe('EditorArea', () => {
       terminalPanelOpen: true,
     })
     render(<EditorArea />)
-    const dock = screen.getByText('Terminal').closest('.border-t')
+    const dock = screen.getByText(/Terminal/).closest('.border-t')
     expect(dock).toBeTruthy()
-    expect(dock && within(dock as HTMLElement).getByText('Terminal')).toBeInTheDocument()
+    expect(dock && within(dock as HTMLElement).getByText(/Terminal/)).toBeInTheDocument()
   })
 
   it('affiche l’état vide sans fichier actif', () => {

@@ -7,6 +7,8 @@ import { GlobalSearch } from './components/GlobalSearch'
 import { GoToSymbol } from './components/GoToSymbol'
 import { MenuBar } from './components/MenuBar'
 import { MissionControl } from './components/MissionControl'
+import { RemotePickerModal } from './components/RemotePickerModal'
+import { RemoteToast } from './components/RemoteToast'
 import { SettingsModal } from './components/SettingsModal'
 import { TerminalPanel } from './components/TerminalPanel'
 import { Sidebar } from './components/Sidebar'
@@ -225,6 +227,8 @@ export default function App() {
       <GoToSymbol />
       <SettingsModal />
       <MissionControl />
+      <RemotePickerModal />
+      <RemoteToast />
     </div>
   )
 }

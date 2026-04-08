@@ -31,6 +31,127 @@ function getRootName(files: FileNode[]): string {
   return root?.name ?? '~'
 }
 
+function attachSimulatedShell(terminal: Terminal): () => void {
+  let currentLine = ''
+
+  terminal.writeln('Aether Terminal (simulated shell)')
+  terminal.writeln('Type `help` for available commands.')
+  terminal.write(PROMPT)
+
+  const runCommand = (line: string) => {
+    const cmd = line.trim()
+    if (!cmd) {
+      terminal.write('\r\n' + PROMPT)
+      return
+    }
+    const [name, ...args] = cmd.split(/\s+/)
+    const rest = args.join(' ')
+    switch (name) {
+      case 'clear':
+        terminal.clear()
+        terminal.write(PROMPT)
+        return
+      case 'echo':
+        terminal.writeln(rest)
+        break
+      case 'ls':
+        flattenFiles(useEditorStore.getState().files).forEach((f) => terminal.writeln(f))
+        break
+      case 'pwd':
+        terminal.writeln(getRootName(useEditorStore.getState().files))
+        break
+      case 'help':
+        terminal.writeln(HELP_TEXT)
+        break
+      default:
+        terminal.writeln(`Command not found: ${name}. For full shell, see ${DOC_URL}`)
+    }
+    terminal.write(PROMPT)
+  }
+
+  const disposable = terminal.onData((data) => {
+    if (data === '\r' || data === '\n') {
+      runCommand(currentLine)
+      currentLine = ''
+      return
+    }
+    if (data === '\u007F' || data === '\b') {
+      if (currentLine.length > 0) {
+        currentLine = currentLine.slice(0, -1)
+        terminal.write('\b \b')
+      }
+      return
+    }
+    currentLine += data
+    terminal.write(data)
+  })
+
+  let unsubStream: (() => void) | undefined
+  if (typeof window !== 'undefined' && window.aetherDesktop?.onTerminalStream) {
+    unsubStream = window.aetherDesktop.onTerminalStream((d) => {
+      if (d?.text) terminal.write(d.text)
+    })
+  }
+
+  return () => {
+    disposable.dispose()
+    unsubStream?.()
+  }
+}
+
+function attachPtyShell(terminal: Terminal): () => void {
+  const pty = window.aetherDesktop?.pty
+  if (!pty) return () => {}
+
+  let disposed = false
+  let unsubData: (() => void) | undefined
+  let unsubExit: (() => void) | undefined
+  let inputDisposable: { dispose(): void } | undefined
+  let resizeDisposable: { dispose(): void } | undefined
+
+  const remoteConn = useEditorStore.getState().remoteConnection
+  const rootPath = useEditorStore.getState().workspaceRootPath
+
+  const isWsl = remoteConn?.type === 'wsl'
+  const shellOpts = isWsl
+    ? {
+        shell: 'wsl.exe',
+        args: ['-d', remoteConn.distro, '--cd', remoteConn.linuxRootPath],
+        env: { TERM: 'xterm-256color' },
+      }
+    : {
+        shell: '',
+        cwd: rootPath || undefined,
+        env: { TERM: 'xterm-256color' },
+      }
+
+  pty.create(shellOpts).then((id) => {
+    if (disposed) { pty.kill(id); return }
+
+    unsubData = pty.onData(id, (data) => terminal.write(data))
+    unsubExit = pty.onExit(id, (code) => {
+      terminal.writeln(`\r\n[Process exited with code ${code}]`)
+    })
+
+    inputDisposable = terminal.onData((data) => pty.write(id, data))
+    resizeDisposable = terminal.onResize(({ cols, rows }) => pty.resize(id, cols, rows))
+
+    if (terminal.cols && terminal.rows) {
+      pty.resize(id, terminal.cols, terminal.rows)
+    }
+  }).catch((err) => {
+    terminal.writeln(`\r\n[Failed to create PTY: ${String(err)}]`)
+  })
+
+  return () => {
+    disposed = true
+    inputDisposable?.dispose()
+    resizeDisposable?.dispose()
+    unsubData?.()
+    unsubExit?.()
+  }
+}
+
 export function TerminalPanel({ embedded = false }: { embedded?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { terminalPanelOpen, setTerminalPanelOpen, terminalPanelHeight } = useEditorStore(
@@ -40,6 +161,7 @@ export function TerminalPanel({ embedded = false }: { embedded?: boolean }) {
       terminalPanelHeight: s.terminalPanelHeight,
     }))
   )
+  const hasPty = typeof window !== 'undefined' && !!window.aetherDesktop?.pty
 
   useEffect(() => {
     if (!terminalPanelOpen || !containerRef.current) return
@@ -57,59 +179,8 @@ export function TerminalPanel({ embedded = false }: { embedded?: boolean }) {
     const fitAddon = new FitAddon()
     terminal.loadAddon(fitAddon)
     terminal.open(el)
-    terminal.writeln('Aether Terminal (simulated shell)')
-    terminal.writeln('Type `help` for available commands.')
-    terminal.write(PROMPT)
 
-    let currentLine = ''
-    const runCommand = (line: string) => {
-      const cmd = line.trim()
-      if (!cmd) {
-        terminal.write('\r\n' + PROMPT)
-        return
-      }
-      const [name, ...args] = cmd.split(/\s+/)
-      const rest = args.join(' ')
-      switch (name) {
-        case 'clear':
-          terminal.clear()
-          terminal.write(PROMPT)
-          return
-        case 'echo':
-          terminal.writeln(rest)
-          break
-        case 'ls':
-          const flat = flattenFiles(useEditorStore.getState().files)
-          flat.forEach((f) => terminal.writeln(f))
-          break
-        case 'pwd':
-          terminal.writeln(getRootName(useEditorStore.getState().files))
-          break
-        case 'help':
-          terminal.writeln(HELP_TEXT)
-          break
-        default:
-          terminal.writeln(`Command not found: ${name}. For full shell, see ${DOC_URL}`)
-      }
-      terminal.write(PROMPT)
-    }
-
-    terminal.onData((data) => {
-      if (data === '\r' || data === '\n') {
-        runCommand(currentLine)
-        currentLine = ''
-        return
-      }
-      if (data === '\u007F' || data === '\b') {
-        if (currentLine.length > 0) {
-          currentLine = currentLine.slice(0, -1)
-          terminal.write('\b \b')
-        }
-        return
-      }
-      currentLine += data
-      terminal.write(data)
-    })
+    const detachShell = hasPty ? attachPtyShell(terminal) : attachSimulatedShell(terminal)
 
     const resizeObserver = new ResizeObserver(() => {
       try {
@@ -121,19 +192,12 @@ export function TerminalPanel({ embedded = false }: { embedded?: boolean }) {
     resizeObserver.observe(el)
     requestAnimationFrame(() => fitAddon.fit())
 
-    let unsubStream: (() => void) | undefined
-    if (typeof window !== 'undefined' && window.aetherDesktop?.onTerminalStream) {
-      unsubStream = window.aetherDesktop.onTerminalStream((data) => {
-        if (data?.text) terminal.write(data.text)
-      })
-    }
-
     return () => {
-      unsubStream?.()
+      detachShell()
       resizeObserver.disconnect()
       terminal.dispose()
     }
-  }, [terminalPanelOpen, embedded])
+  }, [terminalPanelOpen, embedded, hasPty])
 
   if (!terminalPanelOpen) return null
 
@@ -143,7 +207,9 @@ export function TerminalPanel({ embedded = false }: { embedded?: boolean }) {
       style={embedded ? undefined : { height: terminalPanelHeight }}
     >
       <div className="h-8 flex items-center justify-between px-2 border-b border-white/5 bg-[#111111] shrink-0">
-        <span className="text-xs font-bold tracking-wider text-gray-400 uppercase">Terminal</span>
+        <span className="text-xs font-bold tracking-wider text-gray-400 uppercase">
+          Terminal {hasPty ? '' : '(simulated)'}
+        </span>
         <button
           type="button"
           className="p-1 text-gray-500 hover:text-white"

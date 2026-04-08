@@ -1,4 +1,4 @@
-import { Bot, CornerDownLeft, Eye, EyeOff, FileCode, Search, Settings, Terminal } from 'lucide-react'
+import { Bot, CornerDownLeft, Eye, EyeOff, FileCode, Search, Server, Settings, Terminal, Unplug } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FileNode } from '../domain/fileNode'
 import { useShallow } from 'zustand/react/shallow'
@@ -27,6 +27,9 @@ export function CommandPalette() {
     setGlobalSearchOpen,
     openSettings,
     setMissionControlOpen,
+    setRemotePickerOpen,
+    disconnectRemote,
+    remoteConnection,
   } = useEditorStore(
     useShallow((s) => ({
       commandPaletteOpen: s.commandPaletteOpen,
@@ -40,6 +43,9 @@ export function CommandPalette() {
       setGlobalSearchOpen: s.setGlobalSearchOpen,
       openSettings: s.openSettings,
       setMissionControlOpen: s.setMissionControlOpen,
+      setRemotePickerOpen: s.setRemotePickerOpen,
+      disconnectRemote: s.disconnectRemote,
+      remoteConnection: s.remoteConnection,
     }))
   )
   const [search, setSearch] = useState('')
@@ -97,8 +103,24 @@ export function CommandPalette() {
         icon: <Settings size={14} />,
         action: () => openSettings({ open: true, category: category.id }),
       })),
+      {
+        id: 'cmd-remote-connect',
+        name: 'Remote: Connect to WSL...',
+        type: 'command' as const,
+        icon: <Server size={14} />,
+        action: () => setRemotePickerOpen(true),
+      },
+      ...(remoteConnection?.status === 'connected'
+        ? [{
+            id: 'cmd-remote-disconnect',
+            name: 'Remote: Close Remote Connection',
+            type: 'command' as const,
+            icon: <Unplug size={14} />,
+            action: () => disconnectRemote(),
+          }]
+        : []),
     ],
-    [aiPanelVisible, openSettings, setGlobalSearchOpen, setMissionControlOpen, sidebarVisible, toggleAiPanel, toggleSidebar]
+    [aiPanelVisible, disconnectRemote, openSettings, remoteConnection?.status, setGlobalSearchOpen, setMissionControlOpen, setRemotePickerOpen, sidebarVisible, toggleAiPanel, toggleSidebar]
   )
 
   const filteredCommands = useMemo(() => {

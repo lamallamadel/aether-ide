@@ -27,7 +27,7 @@ describe('TerminalPanel', () => {
   it('renders header and close button when terminalPanelOpen is true', () => {
     useEditorStore.setState({ terminalPanelOpen: true })
     render(<TerminalPanel />)
-    expect(screen.getByText('Terminal')).toBeInTheDocument()
+    expect(screen.getByText(/Terminal/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Close terminal' })).toBeInTheDocument()
   })
 

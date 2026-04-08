@@ -10,6 +10,10 @@ import {
   readTextUnderRoot,
   writeFileUnderRoot,
 } from './workspaceNative.mjs'
+import { registerPtyHandlers, killAllPtySessions } from './ptyManager.mjs'
+import { registerWslDetectionHandlers } from './wslDetection.mjs'
+import { registerWslFileSystemHandlers } from './wslFileSystem.mjs'
+import { registerLspSpawnerHandlers, killAllLspSessions } from './lspSpawner.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -118,6 +122,10 @@ if (!gotLock) {
 
   app.whenReady().then(() => {
     registerIpcHandlers()
+    registerPtyHandlers(() => mainWindow)
+    registerWslDetectionHandlers()
+    registerWslFileSystemHandlers()
+    registerLspSpawnerHandlers(() => mainWindow)
     createWindow()
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -125,6 +133,8 @@ if (!gotLock) {
   })
 
   app.on('window-all-closed', () => {
+    killAllPtySessions()
+    killAllLspSessions()
     if (process.platform !== 'darwin') app.quit()
   })
 }

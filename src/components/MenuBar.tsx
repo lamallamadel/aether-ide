@@ -45,6 +45,7 @@ export function MenuBar() {
     setTerminalDock,
     terminalDock,
     workspaceRootPath,
+    setRemotePickerOpen,
   } = useEditorStore(
     useShallow((s) => ({
       activeFileId: s.activeFileId,
@@ -78,6 +79,7 @@ export function MenuBar() {
       setTerminalDock: s.setTerminalDock,
       terminalDock: s.terminalDock,
       workspaceRootPath: s.workspaceRootPath,
+      setRemotePickerOpen: s.setRemotePickerOpen,
     }))
   )
 
@@ -131,6 +133,12 @@ export function MenuBar() {
               announce('Projet chargé')
             }
           },
+        },
+        {
+          kind: 'action',
+          id: 'file-open-remote',
+          label: 'Open Remote...',
+          action: () => setRemotePickerOpen(true),
         },
         { kind: 'separator', id: 'file-sep-1' },
         {

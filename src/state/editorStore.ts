@@ -15,8 +15,20 @@ import {
   writeWorkspaceProjectConfigNative,
 } from '../config/workspaceProjectConfig'
 import { nativeLoadWorkspace, nativeWriteFileRelative } from '../services/fileSystem/electronNativeWorkspace'
+import type { WorkspaceProvider } from '../services/fileSystem/workspaceProvider'
+import type { RemoteConnectionStatus } from '../types/aether-desktop'
 
 export type AiHealthStatus = 'full' | 'degraded' | 'offline' | 'loading'
+
+export interface RemoteConnection {
+  type: 'wsl'
+  distro: string
+  wslVersion: 1 | 2
+  linuxRootPath: string
+  status: RemoteConnectionStatus
+  errorMessage?: string
+}
+
 
 /** Commands exécutables depuis le MenuBar vers CodeMirror */
 export type EditorCommand = 'undo' | 'redo' | 'copy' | 'cut' | 'paste' | 'selectAll' | 'findInFile'
@@ -75,6 +87,13 @@ export interface EditorState {
   _untitledCounter: number
   syntaxTrees: Record<string, SerializedTree>
   symbolsByFile: Record<string, ExtractedSymbol[]>
+
+  /** Active remote connection (null = local). */
+  remoteConnection: RemoteConnection | null
+  /** Active workspace provider (null = FSA browser mode). */
+  activeProvider: WorkspaceProvider | null
+  /** Modal picker for remote connections. */
+  remotePickerOpen: boolean
 
   toggleFolder: (folderId: string) => void
   openFile: (fileId: string) => void
@@ -136,6 +155,13 @@ export interface EditorState {
   /** Quick fix / gutter IA : contexte ou null si fermé. */
   aiQuickFixContext: { fileId: string; line: number; kind: 'warning' | 'suggestion' } | null
   setAiQuickFixContext: (ctx: EditorState['aiQuickFixContext']) => void
+
+  setRemotePickerOpen: (open: boolean) => void
+  setRemoteConnection: (conn: RemoteConnection | null) => void
+  setRemoteStatus: (status: RemoteConnectionStatus, errorMessage?: string) => void
+  setActiveProvider: (provider: WorkspaceProvider | null) => void
+  connectToWsl: (distro: string, wslVersion: 1 | 2, linuxPath: string) => Promise<void>
+  disconnectRemote: () => void
 }
 
 /** Persistance asynchrone de `.aether/workspace.json` après mise à jour du store. */
@@ -354,6 +380,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   _untitledCounter: 1,
   syntaxTrees: {},
   symbolsByFile: {},
+
+  remoteConnection: null,
+  activeProvider: null,
+  remotePickerOpen: false,
 
   toggleFolder: (folderId) =>
     set((state) => ({
@@ -670,7 +700,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   saveFileToDisk: async (fileId) => {
+    const provider = get().activeProvider
     const rootPath = get().workspaceRootPath
+    if (provider && rootPath) {
+      try {
+        const content = get().getFileContent(fileId)
+        await provider.writeFile(rootPath, fileId.replaceAll('\\', '/'), content)
+        return true
+      } catch (err) {
+        console.error('saveFileToDisk failed', err)
+        return false
+      }
+    }
     if (rootPath) {
       try {
         const content = get().getFileContent(fileId)
@@ -831,4 +872,69 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   aiQuickFixContext: null,
   setAiQuickFixContext: (ctx) => set({ aiQuickFixContext: ctx }),
+
+  setRemotePickerOpen: (open) => set({ remotePickerOpen: open }),
+
+  setRemoteConnection: (conn) => set({ remoteConnection: conn }),
+
+  setRemoteStatus: (status, errorMessage) =>
+    set((state) => {
+      if (!state.remoteConnection) return state
+      return { remoteConnection: { ...state.remoteConnection, status, errorMessage } }
+    }),
+
+  setActiveProvider: (provider) => set({ activeProvider: provider }),
+
+  connectToWsl: async (distro, wslVersion, linuxPath) => {
+    const { WslProvider } = await import('../services/fileSystem/workspaceProvider')
+    const provider = new WslProvider(distro)
+    set({
+      remoteConnection: { type: 'wsl', distro, wslVersion, linuxRootPath: linuxPath, status: 'connecting' },
+      activeProvider: provider,
+    })
+    try {
+      const { files: newFiles, rootPath, workspaceLabel } = await provider.loadTree(linuxPath)
+      const firstFileId = (() => {
+        const flat: FileNode[] = []
+        const visit = (n: FileNode) => {
+          if (n.type === 'file') flat.push(n)
+          if (n.children) n.children.forEach(visit)
+        }
+        newFiles.forEach((root) => visit(root))
+        return flat[0]?.id ?? null
+      })()
+      set({
+        files: newFiles,
+        fileHandles: {},
+        workspaceHandle: null,
+        workspaceRootPath: rootPath,
+        openFiles: firstFileId ? [firstFileId] : [],
+        activeFileId: firstFileId,
+        activeWorkspaceId: workspaceLabel,
+        worktreeChanges: {},
+        syntaxTrees: {},
+        symbolsByFile: {},
+        remoteConnection: { type: 'wsl', distro, wslVersion, linuxRootPath: linuxPath, status: 'connected' },
+        terminalPanelOpen: true,
+      })
+    } catch (err) {
+      console.error('connectToWsl failed', err)
+      set({
+        remoteConnection: {
+          type: 'wsl',
+          distro,
+          wslVersion,
+          linuxRootPath: linuxPath,
+          status: 'error',
+          errorMessage: err instanceof Error ? err.message : 'Connection failed',
+        },
+      })
+    }
+  },
+
+  disconnectRemote: () =>
+    set({
+      remoteConnection: null,
+      activeProvider: null,
+    }),
 }))

@@ -4,7 +4,7 @@ export type ActivationEvent = 'onStartup' | `onCommand:${string}` | `onLanguage:
 
 export type ExtensionLifecycleState = 'installed' | 'activating' | 'active' | 'error'
 
-export type ExtensionRuntime = 'in-process' | 'sandbox'
+export type ExtensionRuntime = 'in-process' | 'sandbox' | 'remote'
 
 export type ExtensionManifest = {
   id: string

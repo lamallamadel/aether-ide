@@ -1,7 +1,7 @@
 export type RuntimeEnvironmentName = 'development' | 'staging' | 'production'
 export type EnvironmentValueSource = 'runtime' | 'workspace' | 'fallback'
 export type WorkspaceEnvironmentStatus = 'not_loaded' | 'loading' | 'ready' | 'degraded'
-export type LspMode = 'embedded' | 'external' | 'auto'
+export type LspMode = 'embedded' | 'external' | 'wsl' | 'auto'
 export type AiMode = 'cloud' | 'local'
 
 export type RuntimeEnvironment = {
@@ -31,7 +31,7 @@ const parseMode = (value: string | undefined): RuntimeEnvironmentName => {
 
 const parseAiMode = (value: string | undefined): AiMode => (value === 'local' ? 'local' : 'cloud')
 const parseLspMode = (value: string | undefined): LspMode =>
-  value === 'external' || value === 'auto' || value === 'embedded' ? value : 'embedded'
+  value === 'external' || value === 'auto' || value === 'embedded' || value === 'wsl' ? value : 'embedded'
 
 export const loadRuntimeEnvironment = (): RuntimeEnvironment => ({
   mode: parseMode(import.meta.env.MODE),

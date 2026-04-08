@@ -1,6 +1,6 @@
 import type { ExtractedSymbol, SerializedTree } from '../../services/syntax/syntaxTypes'
 
-export type AetherLspMode = 'embedded' | 'external' | 'auto'
+export type AetherLspMode = 'embedded' | 'external' | 'wsl' | 'auto'
 
 export type LspDiagnostic = {
   message: string
