@@ -74,10 +74,9 @@ export async function browseFoldersInWsl(distro, basePath) {
   const safePath = basePath || '/home'
   try {
     const raw = await execWslLong(['-d', distro, '--', 'ls', '-1', '-p', '--', safePath])
-    return raw
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l.endsWith('/'))
+    const lines = raw.split(/\r?\n/).map((l) => l.trim())
+    const dirLines = lines.filter((l) => l.endsWith('/'))
+    return dirLines
       .map((l) => {
         const name = l.slice(0, -1)
         const base = safePath.endsWith('/') ? safePath : safePath + '/'
@@ -93,12 +92,7 @@ function execWslLong(args) {
   return new Promise((resolve, reject) => {
     execFile('wsl.exe', args, { encoding: 'buffer', timeout: 30_000 }, (err, stdout) => {
       if (err) return reject(err)
-      let text
-      try {
-        text = Buffer.from(stdout).toString('utf16le')
-      } catch {
-        text = stdout.toString('utf8')
-      }
+      const text = stdout.toString('utf8')
       resolve(text.replace(/\0/g, ''))
     })
   })
