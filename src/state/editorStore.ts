@@ -18,6 +18,8 @@ import { nativeLoadWorkspace, nativeWriteFileRelative } from '../services/fileSy
 import type { WorkspaceProvider } from '../services/fileSystem/workspaceProvider'
 import type { RemoteConnectionStatus } from '../types/aether-desktop'
 
+let _connectionEpoch = 0
+
 export type AiHealthStatus = 'full' | 'degraded' | 'offline' | 'loading'
 
 export interface RemoteConnection {
@@ -59,6 +61,7 @@ export interface EditorState {
   missionControlOpen: boolean
   terminalPanelOpen: boolean
   terminalPanelHeight: number
+  terminalSessionId: number
   terminalDock: TerminalDockMode
   editorSplit: EditorSplitMode
   /** Volet actif pour les commandes Edit et la barre de position. */
@@ -94,6 +97,8 @@ export interface EditorState {
   activeProvider: WorkspaceProvider | null
   /** Modal picker for remote connections. */
   remotePickerOpen: boolean
+  /** Modal for opening a folder in WSL. */
+  wslFolderPromptOpen: boolean
 
   toggleFolder: (folderId: string) => void
   openFile: (fileId: string) => void
@@ -117,6 +122,7 @@ export interface EditorState {
   setTerminalPanelOpen: (open: boolean) => void
   setTerminalPanelHeight: (height: number) => void
   toggleTerminalPanel: () => void
+  newTerminal: () => void
   setAiMode: (mode: 'cloud' | 'local') => void
   setAiHealth: (status: AiHealthStatus) => void
   setIndexingError: (error: string | null) => void
@@ -157,10 +163,12 @@ export interface EditorState {
   setAiQuickFixContext: (ctx: EditorState['aiQuickFixContext']) => void
 
   setRemotePickerOpen: (open: boolean) => void
+  setWslFolderPromptOpen: (open: boolean) => void
   setRemoteConnection: (conn: RemoteConnection | null) => void
   setRemoteStatus: (status: RemoteConnectionStatus, errorMessage?: string) => void
   setActiveProvider: (provider: WorkspaceProvider | null) => void
-  connectToWsl: (distro: string, wslVersion: 1 | 2, linuxPath: string) => Promise<void>
+  connectToWsl: (distro: string, wslVersion: 1 | 2) => Promise<void>
+  openWslFolder: (linuxPath: string) => Promise<void>
   disconnectRemote: () => void
 }
 
@@ -348,6 +356,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   missionControlOpen: false,
   terminalPanelOpen: false,
   terminalPanelHeight: 200,
+  terminalSessionId: 0,
   terminalDock: 'workspace' as TerminalDockMode,
   editorSplit: 'none' as EditorSplitMode,
   activeEditorPane: 'primary' as const,
@@ -384,6 +393,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   remoteConnection: null,
   activeProvider: null,
   remotePickerOpen: false,
+  wslFolderPromptOpen: false,
 
   toggleFolder: (folderId) =>
     set((state) => ({
@@ -455,6 +465,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setTerminalPanelOpen: (open) => set({ terminalPanelOpen: open }),
   setTerminalPanelHeight: (height) => set({ terminalPanelHeight: height }),
   toggleTerminalPanel: () => set((s) => ({ terminalPanelOpen: !s.terminalPanelOpen })),
+  newTerminal: () => set((s) => ({ terminalPanelOpen: true, terminalSessionId: s.terminalSessionId + 1 })),
   setAiMode: (mode) =>
     set((state) => {
       const workspaceEnvironment = state.workspaceEnvironment
@@ -874,6 +885,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setAiQuickFixContext: (ctx) => set({ aiQuickFixContext: ctx }),
 
   setRemotePickerOpen: (open) => set({ remotePickerOpen: open }),
+  setWslFolderPromptOpen: (open) => set({ wslFolderPromptOpen: open }),
 
   setRemoteConnection: (conn) => set({ remoteConnection: conn }),
 
@@ -885,15 +897,48 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setActiveProvider: (provider) => set({ activeProvider: provider }),
 
-  connectToWsl: async (distro, wslVersion, linuxPath) => {
+  connectToWsl: async (distro, wslVersion) => {
+    const epoch = ++_connectionEpoch
     const { WslProvider } = await import('../services/fileSystem/workspaceProvider')
     const provider = new WslProvider(distro)
     set({
-      remoteConnection: { type: 'wsl', distro, wslVersion, linuxRootPath: linuxPath, status: 'connecting' },
+      remoteConnection: { type: 'wsl', distro, wslVersion, linuxRootPath: '', status: 'connecting' },
       activeProvider: provider,
     })
     try {
+      const wsl = window.aetherDesktop?.wsl
+      if (!wsl) throw new Error('WSL bridge unavailable')
+      const check = await wsl.checkAvailable()
+      if (!check.available) throw new Error('WSL is not available')
+      if (_connectionEpoch !== epoch) return
+      set({
+        remoteConnection: { type: 'wsl', distro, wslVersion, linuxRootPath: '', status: 'connected' },
+      })
+    } catch (err) {
+      if (_connectionEpoch !== epoch) return
+      console.error('connectToWsl failed', err)
+      set({
+        remoteConnection: {
+          type: 'wsl', distro, wslVersion, linuxRootPath: '',
+          status: 'error',
+          errorMessage: err instanceof Error ? err.message : 'Connection failed',
+        },
+        activeProvider: null,
+      })
+    }
+  },
+
+  openWslFolder: async (linuxPath) => {
+    const epoch = _connectionEpoch
+    const provider = get().activeProvider
+    const conn = get().remoteConnection
+    if (!provider || conn?.type !== 'wsl' || conn.status !== 'connected') {
+      console.error('openWslFolder: not connected to WSL')
+      return
+    }
+    try {
       const { files: newFiles, rootPath, workspaceLabel } = await provider.loadTree(linuxPath)
+      if (_connectionEpoch !== epoch) return
       const firstFileId = (() => {
         const flat: FileNode[] = []
         const visit = (n: FileNode) => {
@@ -903,6 +948,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         newFiles.forEach((root) => visit(root))
         return flat[0]?.id ?? null
       })()
+      const workspaceId = workspaceLabel
+      const runtimeEnv = get().runtimeEnvironment
+      const workspaceEnvironment: WorkspaceEnvironment = { workspaceId, overrides: {} }
+      const resolved = resolveEnvironment(runtimeEnv, workspaceEnvironment)
       set({
         files: newFiles,
         fileHandles: {},
@@ -914,27 +963,56 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         worktreeChanges: {},
         syntaxTrees: {},
         symbolsByFile: {},
-        remoteConnection: { type: 'wsl', distro, wslVersion, linuxRootPath: linuxPath, status: 'connected' },
-        terminalPanelOpen: true,
+        indexingError: null,
+        workspaceEnvironment,
+        workspaceEnvironmentStatus: 'ready',
+        aiMode: resolved.aiMode,
+        lspMode: resolved.lspMode,
+        externalLspEndpoint: resolved.externalLspEndpoint,
+        resolvedEnvironment: resolved,
+        remoteConnection: { ...conn, linuxRootPath: linuxPath },
       })
     } catch (err) {
-      console.error('connectToWsl failed', err)
+      if (_connectionEpoch !== epoch) return
+      console.error('openWslFolder failed', err)
       set({
         remoteConnection: {
-          type: 'wsl',
-          distro,
-          wslVersion,
+          ...conn,
           linuxRootPath: linuxPath,
           status: 'error',
-          errorMessage: err instanceof Error ? err.message : 'Connection failed',
+          errorMessage: err instanceof Error ? err.message : 'Failed to open folder',
         },
       })
     }
   },
 
-  disconnectRemote: () =>
+  disconnectRemote: () => {
+    ++_connectionEpoch
+    const runtimeEnv = get().runtimeEnvironment
+    const resolved = resolveEnvironment(runtimeEnv, null)
     set({
       remoteConnection: null,
       activeProvider: null,
-    }),
+      files: INITIAL_FILES,
+      fileHandles: {},
+      workspaceHandle: null,
+      workspaceRootPath: null,
+      openFiles: ['App.tsx', 'main.tsx'],
+      activeFileId: 'App.tsx',
+      activeWorkspaceId: null,
+      worktreeChanges: {},
+      syntaxTrees: {},
+      symbolsByFile: {},
+      terminalPanelOpen: false,
+      remotePickerOpen: false,
+      wslFolderPromptOpen: false,
+      indexingError: null,
+      workspaceEnvironment: null,
+      workspaceEnvironmentStatus: 'not_loaded',
+      aiMode: resolved.aiMode,
+      lspMode: resolved.lspMode,
+      externalLspEndpoint: resolved.externalLspEndpoint,
+      resolvedEnvironment: resolved,
+    })
+  },
 }))

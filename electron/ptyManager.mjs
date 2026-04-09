@@ -5,7 +5,7 @@
 import { ipcMain } from 'electron'
 import os from 'node:os'
 
-/** @type {Map<string, import('node-pty').IPty>} */
+/** @type {Map<string, import('@lydell/node-pty').IPty>} */
 const sessions = new Map()
 let counter = 0
 
@@ -20,12 +20,12 @@ function defaultShell() {
  */
 export function registerPtyHandlers(getWindow) {
   ipcMain.handle('aether:pty-create', async (_event, options) => {
-    const pty = await import('node-pty')
+    const pty = await import('@lydell/node-pty')
     const id = `pty-${++counter}`
-    const shell = options?.shell || defaultShell()
-    const args = options?.args ?? []
-    const cwd = options?.cwd || os.homedir()
-    const env = { ...process.env, ...options?.env, TERM: 'xterm-256color' }
+    const shell = (typeof options?.shell === 'string' && options.shell) ? options.shell : defaultShell()
+    const args = Array.isArray(options?.args) ? options.args.filter((a) => typeof a === 'string') : []
+    const cwd = (typeof options?.cwd === 'string' && options.cwd) ? options.cwd : os.homedir()
+    const env = { ...process.env, ...(options?.env && typeof options.env === 'object' ? options.env : {}), TERM: 'xterm-256color' }
 
     const proc = pty.spawn(shell, args, {
       name: 'xterm-256color',
@@ -56,6 +56,7 @@ export function registerPtyHandlers(getWindow) {
   })
 
   ipcMain.on('aether:pty-write', (_event, ptyId, data) => {
+    if (typeof ptyId !== 'string' || typeof data !== 'string') return
     sessions.get(ptyId)?.write(data)
   })
 

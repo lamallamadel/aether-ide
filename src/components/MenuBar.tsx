@@ -39,13 +39,14 @@ export function MenuBar() {
     saveFileToDisk,
     saveFileAsInWorkspace,
     hasFileHandle,
-    toggleTerminalPanel,
     setEditorSplit,
     editorSplit,
     setTerminalDock,
     terminalDock,
     workspaceRootPath,
     setRemotePickerOpen,
+    remoteConnection,
+    setWslFolderPromptOpen,
   } = useEditorStore(
     useShallow((s) => ({
       activeFileId: s.activeFileId,
@@ -73,13 +74,14 @@ export function MenuBar() {
       saveFileToDisk: s.saveFileToDisk,
       saveFileAsInWorkspace: s.saveFileAsInWorkspace,
       hasFileHandle: s.hasFileHandle,
-      toggleTerminalPanel: s.toggleTerminalPanel,
       setEditorSplit: s.setEditorSplit,
       editorSplit: s.editorSplit,
       setTerminalDock: s.setTerminalDock,
       terminalDock: s.terminalDock,
       workspaceRootPath: s.workspaceRootPath,
       setRemotePickerOpen: s.setRemotePickerOpen,
+      remoteConnection: s.remoteConnection,
+      setWslFolderPromptOpen: s.setWslFolderPromptOpen,
     }))
   )
 
@@ -113,8 +115,12 @@ export function MenuBar() {
         {
           kind: 'action',
           id: 'file-folder',
-          label: 'Open Folder...',
+          label: remoteConnection?.status === 'connected' ? `Open Folder in WSL (${remoteConnection.distro})...` : 'Open Folder...',
           action: async () => {
+            if (remoteConnection?.status === 'connected' && remoteConnection.type === 'wsl') {
+              setWslFolderPromptOpen(true)
+              return
+            }
             if (getWorkspaceShellKind() === 'electron') {
               const nativePath = await pickNativeWorkspaceRootPath()
               if (nativePath) {
@@ -270,7 +276,7 @@ export function MenuBar() {
         { kind: 'action', id: 'run-placeholder', label: '(More run targets — extend scripts)', action: () => announce('Configure npm scripts in package.json') },
       ],
       Terminal: [
-        { kind: 'action', id: 'term-new', label: 'New Terminal', action: () => toggleTerminalPanel() },
+        { kind: 'action', id: 'term-new', label: 'New Terminal', action: () => useEditorStore.getState().newTerminal() },
       ],
       Preferences: [
         { kind: 'action', id: 'prefs-open', label: 'Open Settings', action: () => openSettings({ open: true }) },
@@ -300,7 +306,6 @@ export function MenuBar() {
       setGlobalSearchOpen,
       setGoToSymbolOpen,
       openSettings,
-      toggleTerminalPanel,
       toggleAiPanel,
       toggleSidebar,
       closeFile,
@@ -311,12 +316,14 @@ export function MenuBar() {
       editorMinimap,
       toggleEditorMinimap,
       executeEditorCommand,
-      toggleTerminalPanel,
       setEditorSplit,
       editorSplit,
       setTerminalDock,
       terminalDock,
       workspaceRootPath,
+      remoteConnection,
+      setWslFolderPromptOpen,
+      setRemotePickerOpen,
     ]
   )
 

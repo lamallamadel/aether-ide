@@ -21,12 +21,16 @@ function parseContentLength(header) {
  */
 export function registerLspSpawnerHandlers(getWindow) {
   ipcMain.handle('aether:lsp-spawn', async (_event, options) => {
-    const { distro, command, args = [], cwd } = options
+    const { distro, command, args = [], cwd } = options ?? {}
+    if (typeof distro !== 'string' || !distro) throw new Error('Invalid distro')
+    if (typeof command !== 'string' || !command) throw new Error('Invalid command')
+    const safeArgs = Array.isArray(args) ? args.filter((a) => typeof a === 'string') : []
     const id = `lsp-${++counter}`
 
-    const wslArgs = ['-d', distro, '--']
-    if (cwd) wslArgs.push('cd', cwd, '&&')
-    wslArgs.push(command, ...args)
+    const shellCmd = cwd && typeof cwd === 'string'
+      ? `cd ${cwd.replace(/'/g, "'\\''")} && exec ${command} ${safeArgs.join(' ')}`
+      : `exec ${command} ${safeArgs.join(' ')}`
+    const wslArgs = ['-d', distro, '--', 'sh', '-c', shellCmd]
 
     const proc = spawn('wsl.exe', wslArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -56,6 +60,11 @@ export function registerLspSpawnerHandlers(getWindow) {
       }
     })
 
+    proc.on('error', (err) => {
+      console.error(`LSP process ${id} error:`, err.message)
+      sessions.delete(id)
+    })
+
     return id
   })
 
@@ -64,7 +73,7 @@ export function registerLspSpawnerHandlers(getWindow) {
     if (!session) return
     const body = JSON.stringify(jsonRpcMessage)
     const header = `Content-Length: ${Buffer.byteLength(body, 'utf8')}\r\n\r\n`
-    session.process.stdin.write(header + body)
+    try { session.process.stdin.write(header + body) } catch { /* stdin closed */ }
   })
 
   ipcMain.on('aether:lsp-kill', (_event, lspId) => {

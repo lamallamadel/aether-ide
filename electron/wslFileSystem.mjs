@@ -11,8 +11,19 @@ const EXCLUDED_DIRS = new Set([
   '.next', '.nuxt', '__pycache__', '.venv', 'venv',
 ])
 
-const MAX_FILES = 1000
-const MAX_DEPTH = 10
+const MAX_FILES = 500
+const MAX_DEPTH = 8
+const MAX_FILE_SIZE = 256 * 1024
+
+const BINARY_EXTENSIONS = new Set([
+  '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.webp', '.svg',
+  '.woff', '.woff2', '.ttf', '.eot', '.otf',
+  '.zip', '.gz', '.tar', '.7z', '.rar', '.bz2',
+  '.exe', '.dll', '.so', '.dylib', '.o', '.a',
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx',
+  '.mp3', '.mp4', '.wav', '.avi', '.mov', '.mkv',
+  '.wasm', '.pyc', '.class',
+])
 
 function getLanguageFromExtension(name) {
   const lower = name.toLowerCase()
@@ -35,6 +46,7 @@ function getLanguageFromExtension(name) {
  * E.g. `toUncPath('Ubuntu', '/home/user/proj')` → `\\wsl$\Ubuntu\home\user\proj`
  */
 export function toUncPath(distro, linuxPath) {
+  if (!linuxPath.startsWith('/')) throw new Error(`WSL path must be absolute (got "${linuxPath}")`)
   const normalized = linuxPath.replace(/\//g, '\\')
   return `\\\\wsl$\\${distro}${normalized}`
 }
@@ -94,11 +106,20 @@ export async function readWorkspaceTreeWsl(distro, linuxPath) {
       } else if (ent.isFile()) {
         fileCount++
         const filePath = pathPrefix ? `${pathPrefix}/${name}` : name
+        const ext = path.extname(name).toLowerCase()
         let content = ''
-        try {
-          content = await fs.readFile(path.join(dirAbs, name), 'utf8')
-        } catch {
-          content = `// Error reading ${name}`
+        if (!BINARY_EXTENSIONS.has(ext)) {
+          try {
+            const fullPath = path.join(dirAbs, name)
+            const stat = await fs.stat(fullPath)
+            if (stat.size <= MAX_FILE_SIZE) {
+              content = await fs.readFile(fullPath, 'utf8')
+            } else {
+              content = `// File too large (${Math.round(stat.size / 1024)}KB)`
+            }
+          } catch {
+            content = `// Error reading ${name}`
+          }
         }
         children.push({
           id: filePath,
@@ -151,11 +172,17 @@ export function registerWslFileSystemHandlers() {
   })
 
   ipcMain.handle('aether:wsl-write-file-relative', async (_event, distro, rootPath, relativePath, content) => {
+    if (typeof distro !== 'string' || !distro) throw new Error('Invalid distro')
+    if (typeof rootPath !== 'string' || !rootPath) throw new Error('Invalid rootPath')
+    if (typeof relativePath !== 'string' || !relativePath) throw new Error('Invalid relativePath')
     if (typeof content !== 'string') throw new Error('Invalid content')
     await writeFileInWsl(distro, rootPath, relativePath, content)
   })
 
   ipcMain.handle('aether:wsl-read-text-relative', async (_event, distro, rootPath, relativePath) => {
+    if (typeof distro !== 'string' || !distro) throw new Error('Invalid distro')
+    if (typeof rootPath !== 'string' || !rootPath) throw new Error('Invalid rootPath')
+    if (typeof relativePath !== 'string' || !relativePath) throw new Error('Invalid relativePath')
     return readTextInWsl(distro, rootPath, relativePath)
   })
 }

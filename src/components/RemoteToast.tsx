@@ -27,7 +27,7 @@ export function RemoteToast() {
   if (!visible) return null
 
   return (
-    <div className="fixed top-4 right-4 z-[60] animate-in slide-in-from-right fade-in duration-200">
+    <div className="fixed top-4 right-4 z-[60] animate-in slide-in-from-right fade-in duration-200" role="status" aria-live="polite">
       <div className="flex items-center gap-3 bg-[#1a1a1a] border border-green-500/30 rounded-xl px-4 py-3 shadow-2xl shadow-green-500/10">
         <CheckCircle2 size={18} className="text-green-400 shrink-0" />
         <div className="flex flex-col">

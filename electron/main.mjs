@@ -1,7 +1,7 @@
 /**
  * Processus principal Electron — charge l’UI Vite (dev) ou dist/index.html (prod).
  */
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog } from 'electron'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,18 +20,24 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 /** @type {BrowserWindow | null} */
 let mainWindow = null
 
+/** @type {Set<import('node:child_process').ChildProcess>} */
+const npmChildren = new Set()
+
 function createWindow() {
+  Menu.setApplicationMenu(null)
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 640,
     minHeight: 400,
     show: false,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      sandbox: false,
     },
   })
 
@@ -74,11 +80,15 @@ function registerIpcHandlers() {
   })
 
   ipcMain.handle('aether:write-file-relative', async (_event, rootPath, relativePath, content) => {
+    if (typeof rootPath !== 'string' || !rootPath.trim()) throw new Error('Invalid root path')
+    if (typeof relativePath !== 'string' || !relativePath.trim()) throw new Error('Invalid relative path')
     if (typeof content !== 'string') throw new Error('Invalid content')
     await writeFileUnderRoot(rootPath, relativePath, content)
   })
 
   ipcMain.handle('aether:read-text-relative', async (_event, rootPath, relativePath) => {
+    if (typeof rootPath !== 'string' || !rootPath.trim()) throw new Error('Invalid root path')
+    if (typeof relativePath !== 'string' || !relativePath.trim()) throw new Error('Invalid relative path')
     return readTextUnderRoot(rootPath, relativePath)
   })
 
@@ -92,18 +102,22 @@ function registerIpcHandlers() {
       shell: process.platform === 'win32',
       env: process.env,
     })
+    npmChildren.add(child)
     const sender = event.sender
+    const safeSend = (ch, data) => { try { if (!sender.isDestroyed()) sender.send(ch, data) } catch { /* ignore */ } }
     child.stdout?.on('data', (d) => {
-      sender.send('aether:terminal-stream', { text: d.toString(), stream: 'stdout' })
+      safeSend('aether:terminal-stream', { text: d.toString(), stream: 'stdout' })
     })
     child.stderr?.on('data', (d) => {
-      sender.send('aether:terminal-stream', { text: d.toString(), stream: 'stderr' })
+      safeSend('aether:terminal-stream', { text: d.toString(), stream: 'stderr' })
     })
     child.on('close', (code) => {
-      sender.send('aether:terminal-stream', { text: `\r\n[process exited with code ${code}]\r\n`, stream: 'exit', code })
+      npmChildren.delete(child)
+      safeSend('aether:terminal-stream', { text: `\r\n[process exited with code ${code}]\r\n`, stream: 'exit', code })
     })
     child.on('error', (err) => {
-      sender.send('aether:terminal-stream', { text: `${err.message}\r\n`, stream: 'error' })
+      npmChildren.delete(child)
+      safeSend('aether:terminal-stream', { text: `${err.message}\r\n`, stream: 'error' })
     })
     return { ok: true, message: `Started: npm run ${script}` }
   })
@@ -135,6 +149,8 @@ if (!gotLock) {
   app.on('window-all-closed', () => {
     killAllPtySessions()
     killAllLspSessions()
+    for (const child of npmChildren) { try { child.kill() } catch { /* ignore */ } }
+    npmChildren.clear()
     if (process.platform !== 'darwin') app.quit()
   })
 }

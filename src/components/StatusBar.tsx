@@ -1,4 +1,4 @@
-import { AlertTriangle, Bot, Brain, Split, X } from 'lucide-react'
+import { AlertTriangle, Bot, Brain, Split, X, Unplug } from 'lucide-react'
 import { useEditorStore } from '../state/editorStore'
 import { useShallow } from 'zustand/react/shallow'
 import type { AiHealthStatus } from '../state/editorStore'
@@ -11,7 +11,7 @@ const AI_HEALTH_CONFIG: Record<AiHealthStatus, { color: string; label: string; p
 }
 
 export function StatusBar() {
-  const { editorFontSizePx, perf, activeFileId, aiHealth, indexingError, storageQuotaExceeded, remoteConnection, setRemotePickerOpen } = useEditorStore(
+  const { editorFontSizePx, perf, activeFileId, aiHealth, indexingError, storageQuotaExceeded, remoteConnection, setRemotePickerOpen, disconnectRemote } = useEditorStore(
     useShallow((s) => ({
       editorFontSizePx: s.editorFontSizePx,
       perf: s.perf,
@@ -21,6 +21,7 @@ export function StatusBar() {
       storageQuotaExceeded: s.storageQuotaExceeded,
       remoteConnection: s.remoteConnection,
       setRemotePickerOpen: s.setRemotePickerOpen,
+      disconnectRemote: s.disconnectRemote,
     }))
   )
 
@@ -32,7 +33,7 @@ export function StatusBar() {
     ? `WSL: ${remoteConnection.distro}`
     : 'Open Remote'
   const remoteTooltip = isRemoteConnected
-    ? `Connected to ${remoteConnection.distro} (WSL ${remoteConnection.wslVersion}) — ${remoteConnection.linuxRootPath}`
+    ? `Connected to ${remoteConnection.distro} (WSL ${remoteConnection.wslVersion})${remoteConnection.linuxRootPath ? ` — ${remoteConnection.linuxRootPath}` : ''}`
     : 'Connect to WSL or remote host'
 
   return (
@@ -47,11 +48,25 @@ export function StatusBar() {
               : 'hover:bg-primary-500/20 text-primary-100'
           }`}
           title={remoteTooltip}
+          aria-label={remoteLabel}
           onClick={() => setRemotePickerOpen(true)}
         >
           <span className="font-mono text-[10px] font-bold">&gt;&lt;</span>
           <span>{remoteLabel}</span>
         </button>
+
+        {isRemoteConnected && (
+          <button
+            type="button"
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded cursor-pointer transition-colors text-red-300 hover:bg-red-500/20"
+            title="Disconnect from WSL"
+            aria-label="Disconnect from WSL"
+            onClick={() => disconnectRemote()}
+          >
+            <Unplug size={12} />
+            <span>Disconnect</span>
+          </button>
+        )}
 
         {indexingError && (
           <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200" title={indexingError}>
@@ -65,14 +80,14 @@ export function StatusBar() {
             <span>Storage full</span>
           </div>
         )}
-        <div className="flex items-center gap-1 hover:bg-primary-500/20 px-1.5 py-0.5 rounded cursor-pointer text-primary-100">
+        <button type="button" className="flex items-center gap-1 hover:bg-primary-500/20 px-1.5 py-0.5 rounded cursor-pointer text-primary-100" aria-label="Git branch: master">
           <Split size={12} />
           <span>master*</span>
-        </div>
-        <div className="flex items-center gap-1 hover:bg-primary-500/20 px-1.5 py-0.5 rounded cursor-pointer text-primary-100">
+        </button>
+        <button type="button" className="flex items-center gap-1 hover:bg-primary-500/20 px-1.5 py-0.5 rounded cursor-pointer text-primary-100" aria-label="0 errors">
           <X size={12} className="rounded-full bg-primary-500/20 p-0.5" />
           <span>0 errors</span>
-        </div>
+        </button>
       </div>
       <div className="flex items-center gap-2">
         <span className="hover:bg-primary-500/20 px-1.5 py-0.5 rounded cursor-pointer text-primary-100">

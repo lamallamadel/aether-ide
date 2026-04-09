@@ -3,11 +3,31 @@
  */
 import { contextBridge, ipcRenderer } from 'electron'
 
+const runtimePlatform = typeof process !== 'undefined' ? process.platform : 'unknown'
+const runtimeVersions =
+  typeof process !== 'undefined'
+    ? {
+        electron: process.versions?.electron ?? 'unknown',
+        chrome: process.versions?.chrome ?? 'unknown',
+      }
+    : { electron: 'unknown', chrome: 'unknown' }
+
 // Raw IPC bridge for LSP stdio relay (needed by WslStdioTransport)
+const ALLOWED_IPC_CHANNELS = new Set([
+  'aether:lsp-spawn', 'aether:lsp-send', 'aether:lsp-kill',
+  'aether:lsp-message', 'aether:lsp-stderr', 'aether:lsp-exit',
+])
 contextBridge.exposeInMainWorld('__aetherIpc', {
-  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
-  send: (channel, ...args) => ipcRenderer.send(channel, ...args),
+  invoke: (channel, ...args) => {
+    if (!ALLOWED_IPC_CHANNELS.has(channel)) throw new Error(`IPC channel not allowed: ${channel}`)
+    return ipcRenderer.invoke(channel, ...args)
+  },
+  send: (channel, ...args) => {
+    if (!ALLOWED_IPC_CHANNELS.has(channel)) throw new Error(`IPC channel not allowed: ${channel}`)
+    ipcRenderer.send(channel, ...args)
+  },
   on: (channel, fn) => {
+    if (!ALLOWED_IPC_CHANNELS.has(channel)) throw new Error(`IPC channel not allowed: ${channel}`)
     const handler = (_event, ...args) => fn(...args)
     ipcRenderer.on(channel, handler)
     return () => ipcRenderer.removeListener(channel, handler)
@@ -16,11 +36,8 @@ contextBridge.exposeInMainWorld('__aetherIpc', {
 
 contextBridge.exposeInMainWorld('aetherDesktop', {
   kind: 'electron',
-  platform: process.platform,
-  versions: {
-    electron: process.versions.electron,
-    chrome: process.versions.chrome,
-  },
+  platform: runtimePlatform,
+  versions: runtimeVersions,
   pickWorkspaceRoot: () => ipcRenderer.invoke('aether:pick-directory'),
   loadWorkspace: (rootPath) => ipcRenderer.invoke('aether:load-workspace', rootPath),
   writeFileRelative: (rootPath, relativePath, content) =>
@@ -60,5 +77,6 @@ contextBridge.exposeInMainWorld('aetherDesktop', {
     readTextRelative: (distro, rootPath, relativePath) =>
       ipcRenderer.invoke('aether:wsl-read-text-relative', distro, rootPath, relativePath),
     browseFolders: (distro, basePath) => ipcRenderer.invoke('aether:wsl-browse-folders', distro, basePath),
+    getHomePath: (distro) => ipcRenderer.invoke('aether:wsl-get-home', distro),
   },
 })

@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   MonitorSmartphone,
   Server,
   Loader2,
   AlertTriangle,
   CheckCircle2,
-  FolderOpen,
   ChevronRight,
   X,
   ExternalLink,
@@ -16,7 +15,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
 import type { WslDistro } from '../types/aether-desktop'
 
-type Step = 'type' | 'distro' | 'folder' | 'connecting'
+type Step = 'type' | 'distro' | 'connecting'
 
 export function RemotePickerModal() {
   const { remotePickerOpen, setRemotePickerOpen, connectToWsl, remoteConnection } = useEditorStore(
@@ -31,13 +30,9 @@ export function RemotePickerModal() {
   const [step, setStep] = useState<Step>('type')
   const [wslAvailable, setWslAvailable] = useState<boolean | null>(null)
   const [distros, setDistros] = useState<WslDistro[]>([])
-  const [selectedDistro, setSelectedDistro] = useState<WslDistro | null>(null)
-  const [folderPath, setFolderPath] = useState('/home')
-  const [suggestions, setSuggestions] = useState<string[]>([])
   const [loadingDistros, setLoadingDistros] = useState(false)
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [bridgeDiagnostic, setBridgeDiagnostic] = useState<string | null>(null)
 
   useEffect(() => {
     if (remotePickerOpen) {
@@ -45,17 +40,10 @@ export function RemotePickerModal() {
       setWslAvailable(null)
       setDistros([])
       setSelectedDistro(null)
-      setFolderPath('/home')
-      setSuggestions([])
       setError(null)
+      setBridgeDiagnostic(null)
     }
   }, [remotePickerOpen])
-
-  useEffect(() => {
-    if (step === 'folder' && inputRef.current) {
-      inputRef.current.focus()
-    }
-  }, [step])
 
   const connStatus = remoteConnection?.status
 
@@ -66,12 +54,39 @@ export function RemotePickerModal() {
     }
   }, [step, connStatus, setRemotePickerOpen])
 
+  const closeModal = useCallback(() => setRemotePickerOpen(false), [setRemotePickerOpen])
+
+  useEffect(() => {
+    if (!remotePickerOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); closeModal() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [remotePickerOpen, closeModal])
+
   const scanDistros = async () => {
     setLoadingDistros(true)
     setError(null)
+    setBridgeDiagnostic(null)
     try {
+      const hasDesktop = typeof window !== 'undefined' && !!window.aetherDesktop
+      const hasWslBridge = !!window.aetherDesktop?.wsl
+      if (!hasDesktop || !hasWslBridge) {
+        const keys = hasDesktop ? Object.keys(window.aetherDesktop ?? {}).join(', ') : '(none)'
+        setBridgeDiagnostic(
+          [
+            `aetherDesktop: ${hasDesktop ? 'present' : 'missing'}`,
+            `aetherDesktop.wsl: ${hasWslBridge ? 'present' : 'missing'}`,
+            `available keys: ${keys}`,
+          ].join(' | ')
+        )
+      }
       const wsl = window.aetherDesktop?.wsl
-      if (!wsl) { setError('WSL bridge not available (Electron required)'); return }
+      if (!wsl) {
+        setError('WSL bridge not available. This build is running without the Electron WSL preload surface.')
+        return
+      }
       const check = await wsl.checkAvailable()
       setWslAvailable(check.available)
       if (!check.available) { setError('WSL is not installed on this machine.'); return }
@@ -85,55 +100,32 @@ export function RemotePickerModal() {
     }
   }
 
-  const browseFolders = async (basePath: string) => {
-    if (!selectedDistro) return
-    setLoadingSuggestions(true)
-    try {
-      const wsl = window.aetherDesktop?.wsl
-      if (!wsl) return
-      const folders = await wsl.browseFolders(selectedDistro.name, basePath)
-      setSuggestions(folders)
-    } catch {
-      setSuggestions([])
-    } finally {
-      setLoadingSuggestions(false)
-    }
-  }
-
   const handleSelectType = () => {
     setStep('distro')
     scanDistros()
   }
 
+  const [selectedDistro, setSelectedDistro] = useState<WslDistro | null>(null)
+
   const handleSelectDistro = (d: WslDistro) => {
     setSelectedDistro(d)
-    setStep('folder')
-    const home = `/home`
-    setFolderPath(home)
-    browseFolders(home)
-  }
-
-  const handleConnect = () => {
-    if (!selectedDistro || !folderPath.trim()) return
     setStep('connecting')
-    connectToWsl(selectedDistro.name, selectedDistro.version, folderPath.trim())
+    connectToWsl(d.name, d.version)
   }
 
-  const progressSteps = useMemo(() => {
-    if (step !== 'connecting') return []
-    const s = remoteConnection?.status ?? 'connecting'
-    return [
-      { label: `Connecting to ${selectedDistro?.name}...`, done: s === 'connected' || s === 'error' },
-      { label: 'Loading file tree...', done: s === 'connected' || s === 'error' },
-      { label: 'Starting terminal...', done: s === 'connected' },
-    ]
-  }, [step, remoteConnection?.status, selectedDistro?.name])
+  const connectingLabel = useMemo(() => {
+    if (!selectedDistro) return 'Connecting...'
+    return `Connecting to ${selectedDistro.name}...`
+  }, [selectedDistro])
 
   if (!remotePickerOpen) return null
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] bg-black/60 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="remote-picker-title"
       onClick={() => setRemotePickerOpen(false)}
     >
       <div
@@ -144,7 +136,7 @@ export function RemotePickerModal() {
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
           <div className="flex items-center gap-2">
             <Server size={18} className="text-green-400" />
-            <h2 className="text-white font-semibold text-base">Open Remote</h2>
+            <h2 id="remote-picker-title" className="text-white font-semibold text-base">Open Remote</h2>
           </div>
           <button
             type="button"
@@ -218,6 +210,12 @@ export function RemotePickerModal() {
                 <div className="flex flex-col items-center gap-3 py-6 text-center">
                   <AlertTriangle size={32} className="text-amber-400" />
                   <p className="text-sm text-gray-300">{error}</p>
+                  {bridgeDiagnostic && (
+                    <div className="w-full rounded-md border border-amber-500/20 bg-black/30 p-2 text-left">
+                      <p className="mb-1 text-[10px] uppercase tracking-wider text-amber-300">Runtime Diagnostic</p>
+                      <code className="block break-all text-[11px] text-amber-100/90">{bridgeDiagnostic}</code>
+                    </div>
+                  )}
                   {wslAvailable === false && (
                     <div className="flex flex-col items-center gap-2 mt-2">
                       <p className="text-xs text-gray-500">
@@ -275,123 +273,36 @@ export function RemotePickerModal() {
             </div>
           )}
 
-          {/* Step 3: Choose folder */}
-          {step === 'folder' && selectedDistro && (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-400">
-                  Open folder in <span className="text-white font-medium">{selectedDistro.name}</span>:
-                </p>
-                <button
-                  type="button"
-                  className="text-xs text-gray-500 hover:text-white"
-                  onClick={() => setStep('distro')}
-                >
-                  Back
-                </button>
-              </div>
-
-              <div className="flex gap-2">
-                <div className="flex-1 flex items-center gap-2 bg-[#111] rounded-lg border border-white/10 px-3 py-2 focus-within:border-green-500/50 transition-colors">
-                  <FolderOpen size={14} className="text-gray-500 shrink-0" />
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    className="flex-1 bg-transparent text-white text-sm placeholder-gray-600 focus:outline-none font-mono"
-                    placeholder="/home/user/project"
-                    value={folderPath}
-                    onChange={(e) => setFolderPath(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleConnect()
-                      if (e.key === 'Tab' && suggestions.length > 0) {
-                        e.preventDefault()
-                        setFolderPath(suggestions[0])
-                        browseFolders(suggestions[0])
-                      }
-                    }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="px-3 py-2 text-xs font-medium bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg border border-white/10 transition-colors"
-                  onClick={() => browseFolders(folderPath)}
-                >
-                  Browse
-                </button>
-              </div>
-
-              {loadingSuggestions && (
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <Loader2 size={12} className="animate-spin" /> Loading...
-                </div>
-              )}
-
-              {suggestions.length > 0 && !loadingSuggestions && (
-                <div className="flex flex-col gap-0.5 max-h-[160px] overflow-y-auto custom-scrollbar">
-                  {suggestions.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      className="flex items-center gap-2 px-3 py-1.5 text-left text-sm font-mono text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
-                      onClick={() => {
-                        setFolderPath(s)
-                        browseFolders(s)
-                      }}
-                    >
-                      <FolderOpen size={12} className="text-gray-600 shrink-0" />
-                      <span className="truncate">{s}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <button
-                type="button"
-                className="mt-2 w-full py-2.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                disabled={!folderPath.trim()}
-                onClick={handleConnect}
-              >
-                Connect
-              </button>
-            </div>
-          )}
-
-          {/* Step 4: Connecting */}
+          {/* Step 3: Connecting */}
           {step === 'connecting' && (
-            <div className="flex flex-col gap-4 py-4">
-              {progressSteps.map((ps, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  {ps.done
-                    ? <CheckCircle2 size={18} className="text-green-400 shrink-0" />
-                    : connStatus === 'error'
-                      ? <AlertTriangle size={18} className="text-red-400 shrink-0" />
-                      : <Loader2 size={18} className="text-green-400 animate-spin shrink-0" />
-                  }
-                  <span className={`text-sm ${ps.done ? 'text-green-300' : connStatus === 'error' ? 'text-red-300' : 'text-gray-400'}`}>
-                    {ps.label}
-                  </span>
-                </div>
-              ))}
+            <div className="flex flex-col items-center gap-4 py-8">
+              {connStatus === 'connecting' && (
+                <>
+                  <Loader2 size={32} className="text-green-400 animate-spin" />
+                  <p className="text-sm text-gray-300">{connectingLabel}</p>
+                </>
+              )}
 
               {connStatus === 'connected' && (
-                <div className="mt-2 flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <CheckCircle2 size={16} className="text-green-400" />
-                  <span className="text-sm text-green-300 font-medium">
+                <div className="flex flex-col items-center gap-3">
+                  <CheckCircle2 size={32} className="text-green-400" />
+                  <p className="text-sm text-green-300 font-medium">
                     Connected to WSL: {selectedDistro?.name}
-                  </span>
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Use <strong className="text-gray-300">File &gt; Open Folder</strong> to open a project in WSL
+                  </p>
                 </div>
               )}
 
-              {connStatus === 'error' && remoteConnection?.errorMessage && (
-                <div className="mt-2 flex flex-col gap-2">
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                    <AlertTriangle size={16} className="text-red-400" />
-                    <span className="text-sm text-red-300">{remoteConnection.errorMessage}</span>
-                  </div>
+              {connStatus === 'error' && (
+                <div className="flex flex-col items-center gap-3">
+                  <AlertTriangle size={32} className="text-red-400" />
+                  <p className="text-sm text-red-300">{remoteConnection?.errorMessage || 'Connection failed'}</p>
                   <button
                     type="button"
-                    className="w-full py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-sm transition-colors"
-                    onClick={() => setStep('folder')}
+                    className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-sm transition-colors"
+                    onClick={() => setStep('distro')}
                   >
                     Try again
                   </button>
@@ -406,8 +317,7 @@ export function RemotePickerModal() {
           <span>
             {step === 'type' && 'Select target'}
             {step === 'distro' && `${distros.length} distribution${distros.length !== 1 ? 's' : ''}`}
-            {step === 'folder' && selectedDistro?.name}
-            {step === 'connecting' && 'Connecting...'}
+            {step === 'connecting' && (connStatus === 'connected' ? 'Connected' : 'Connecting...')}
           </span>
           <span>ESC to close</span>
         </div>

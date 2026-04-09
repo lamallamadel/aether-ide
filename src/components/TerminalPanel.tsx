@@ -101,9 +101,10 @@ function attachSimulatedShell(terminal: Terminal): () => void {
 
 function attachPtyShell(terminal: Terminal): () => void {
   const pty = window.aetherDesktop?.pty
-  if (!pty) return () => {}
+  if (!pty) return attachSimulatedShell(terminal)
 
   let disposed = false
+  let ptyId: string | null = null
   let unsubData: (() => void) | undefined
   let unsubExit: (() => void) | undefined
   let inputDisposable: { dispose(): void } | undefined
@@ -112,21 +113,21 @@ function attachPtyShell(terminal: Terminal): () => void {
   const remoteConn = useEditorStore.getState().remoteConnection
   const rootPath = useEditorStore.getState().workspaceRootPath
 
-  const isWsl = remoteConn?.type === 'wsl'
+  const isWsl = remoteConn?.type === 'wsl' && remoteConn.status === 'connected'
   const shellOpts = isWsl
     ? {
         shell: 'wsl.exe',
-        args: ['-d', remoteConn.distro, '--cd', remoteConn.linuxRootPath],
+        args: ['-d', remoteConn.distro, ...(remoteConn.linuxRootPath ? ['--cd', remoteConn.linuxRootPath] : [])],
         env: { TERM: 'xterm-256color' },
       }
     : {
-        shell: '',
         cwd: rootPath || undefined,
         env: { TERM: 'xterm-256color' },
       }
 
   pty.create(shellOpts).then((id) => {
     if (disposed) { pty.kill(id); return }
+    ptyId = id
 
     unsubData = pty.onData(id, (data) => terminal.write(data))
     unsubExit = pty.onExit(id, (code) => {
@@ -140,7 +141,13 @@ function attachPtyShell(terminal: Terminal): () => void {
       pty.resize(id, terminal.cols, terminal.rows)
     }
   }).catch((err) => {
-    terminal.writeln(`\r\n[Failed to create PTY: ${String(err)}]`)
+    console.error('PTY creation failed, falling back to simulated shell', err)
+    terminal.writeln(`\r\n[PTY unavailable: ${String(err)}]`)
+    terminal.writeln('[Falling back to simulated shell]\r\n')
+    const cleanup = attachSimulatedShell(terminal)
+    if (!disposed) {
+      unsubData = cleanup
+    }
   })
 
   return () => {
@@ -149,16 +156,22 @@ function attachPtyShell(terminal: Terminal): () => void {
     resizeDisposable?.dispose()
     unsubData?.()
     unsubExit?.()
+    if (ptyId) {
+      try { pty.kill(ptyId) } catch { /* process may have already exited */ }
+    }
   }
 }
 
 export function TerminalPanel({ embedded = false }: { embedded?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const { terminalPanelOpen, setTerminalPanelOpen, terminalPanelHeight } = useEditorStore(
+  const { terminalPanelOpen, setTerminalPanelOpen, terminalPanelHeight, remoteDistro, terminalSessionId, workspaceRootPath } = useEditorStore(
     useShallow((s) => ({
       terminalPanelOpen: s.terminalPanelOpen,
       setTerminalPanelOpen: s.setTerminalPanelOpen,
       terminalPanelHeight: s.terminalPanelHeight,
+      remoteDistro: s.remoteConnection?.distro ?? null,
+      terminalSessionId: s.terminalSessionId,
+      workspaceRootPath: s.workspaceRootPath,
     }))
   )
   const hasPty = typeof window !== 'undefined' && !!window.aetherDesktop?.pty
@@ -197,7 +210,7 @@ export function TerminalPanel({ embedded = false }: { embedded?: boolean }) {
       resizeObserver.disconnect()
       terminal.dispose()
     }
-  }, [terminalPanelOpen, embedded, hasPty])
+  }, [terminalPanelOpen, embedded, hasPty, remoteDistro, terminalSessionId, workspaceRootPath])
 
   if (!terminalPanelOpen) return null
 

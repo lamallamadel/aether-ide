@@ -1,4 +1,4 @@
-import { Bot, CornerDownLeft, Eye, EyeOff, FileCode, Search, Server, Settings, Terminal, Unplug } from 'lucide-react'
+import { Bot, CornerDownLeft, Eye, EyeOff, FileCode, FolderOpen, Search, Server, Settings, Terminal, Unplug } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FileNode } from '../domain/fileNode'
 import { useShallow } from 'zustand/react/shallow'
@@ -30,6 +30,7 @@ export function CommandPalette() {
     setRemotePickerOpen,
     disconnectRemote,
     remoteConnection,
+    setWslFolderPromptOpen,
   } = useEditorStore(
     useShallow((s) => ({
       commandPaletteOpen: s.commandPaletteOpen,
@@ -46,6 +47,7 @@ export function CommandPalette() {
       setRemotePickerOpen: s.setRemotePickerOpen,
       disconnectRemote: s.disconnectRemote,
       remoteConnection: s.remoteConnection,
+      setWslFolderPromptOpen: s.setWslFolderPromptOpen,
     }))
   )
   const [search, setSearch] = useState('')
@@ -111,16 +113,25 @@ export function CommandPalette() {
         action: () => setRemotePickerOpen(true),
       },
       ...(remoteConnection?.status === 'connected'
-        ? [{
-            id: 'cmd-remote-disconnect',
-            name: 'Remote: Close Remote Connection',
-            type: 'command' as const,
-            icon: <Unplug size={14} />,
-            action: () => disconnectRemote(),
-          }]
+        ? [
+            {
+              id: 'cmd-remote-open-folder',
+              name: 'Remote: Open Folder in WSL...',
+              type: 'command' as const,
+              icon: <FolderOpen size={14} />,
+              action: () => setWslFolderPromptOpen(true),
+            },
+            {
+              id: 'cmd-remote-disconnect',
+              name: 'Remote: Close Remote Connection',
+              type: 'command' as const,
+              icon: <Unplug size={14} />,
+              action: () => disconnectRemote(),
+            },
+          ]
         : []),
     ],
-    [aiPanelVisible, disconnectRemote, openSettings, remoteConnection?.status, setGlobalSearchOpen, setMissionControlOpen, setRemotePickerOpen, sidebarVisible, toggleAiPanel, toggleSidebar]
+    [aiPanelVisible, disconnectRemote, openSettings, setWslFolderPromptOpen, remoteConnection?.status, setGlobalSearchOpen, setMissionControlOpen, setRemotePickerOpen, sidebarVisible, toggleAiPanel, toggleSidebar]
   )
 
   const filteredCommands = useMemo(() => {

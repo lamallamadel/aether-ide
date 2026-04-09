@@ -9,6 +9,7 @@ import { MenuBar } from './components/MenuBar'
 import { MissionControl } from './components/MissionControl'
 import { RemotePickerModal } from './components/RemotePickerModal'
 import { RemoteToast } from './components/RemoteToast'
+import { WslFolderModal } from './components/WslFolderModal'
 import { SettingsModal } from './components/SettingsModal'
 import { TerminalPanel } from './components/TerminalPanel'
 import { Sidebar } from './components/Sidebar'
@@ -228,6 +229,7 @@ export default function App() {
       <SettingsModal />
       <MissionControl />
       <RemotePickerModal />
+      <WslFolderModal />
       <RemoteToast />
     </div>
   )

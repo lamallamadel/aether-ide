@@ -67,14 +67,54 @@ export async function listWslDistros() {
 
 /**
  * Browse top-level folders inside a WSL distro at `basePath`.
- * Uses `wsl.exe -d <distro> -- ls -1 <basePath>`.
+ * Uses `ls -1 -p` which is more portable than `find` and filters for directories.
+ * Longer timeout (30s) because the distro may need to start first.
  */
 export async function browseFoldersInWsl(distro, basePath) {
-  const raw = await execWsl(['-d', distro, '--', 'find', basePath, '-maxdepth', '1', '-type', 'd'])
-  return raw
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && l !== basePath)
+  const safePath = basePath || '/home'
+  try {
+    const raw = await execWslLong(['-d', distro, '--', 'ls', '-1', '-p', '--', safePath])
+    return raw
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.endsWith('/'))
+      .map((l) => {
+        const name = l.slice(0, -1)
+        const base = safePath.endsWith('/') ? safePath : safePath + '/'
+        return base + name
+      })
+  } catch (err) {
+    console.error('browseFoldersInWsl failed:', err?.message ?? err)
+    return []
+  }
+}
+
+function execWslLong(args) {
+  return new Promise((resolve, reject) => {
+    execFile('wsl.exe', args, { encoding: 'buffer', timeout: 30_000 }, (err, stdout) => {
+      if (err) return reject(err)
+      let text
+      try {
+        text = Buffer.from(stdout).toString('utf16le')
+      } catch {
+        text = stdout.toString('utf8')
+      }
+      resolve(text.replace(/\0/g, ''))
+    })
+  })
+}
+
+/**
+ * Get the default home directory for the current user in a WSL distro.
+ */
+export async function getWslHomePath(distro) {
+  try {
+    const raw = await execWslLong(['-d', distro, '--', 'sh', '-c', 'echo $HOME'])
+    const home = raw.trim().split(/\r?\n/).pop()?.trim()
+    return home && home.startsWith('/') ? home : '/home'
+  } catch {
+    return '/home'
+  }
 }
 
 export function registerWslDetectionHandlers() {
@@ -87,6 +127,12 @@ export function registerWslDetectionHandlers() {
   })
 
   ipcMain.handle('aether:wsl-browse-folders', async (_event, distro, basePath) => {
-    return browseFoldersInWsl(distro, basePath || '/home')
+    if (typeof distro !== 'string' || !distro) throw new Error('Invalid distro')
+    return browseFoldersInWsl(distro, typeof basePath === 'string' ? basePath : '/home')
+  })
+
+  ipcMain.handle('aether:wsl-get-home', async (_event, distro) => {
+    if (typeof distro !== 'string' || !distro) throw new Error('Invalid distro')
+    return getWslHomePath(distro)
   })
 }

@@ -13,7 +13,7 @@ export type RemoteConnectionStatus = 'disconnected' | 'connecting' | 'connected'
 
 /** PTY session surface exposed by preload. */
 export interface PtyBridge {
-  create: (options: { shell: string; args?: string[]; cwd?: string; env?: Record<string, string> }) => Promise<string>
+  create: (options: { shell?: string; args?: string[]; cwd?: string; env?: Record<string, string> }) => Promise<string>
   write: (ptyId: string, data: string) => void
   resize: (ptyId: string, cols: number, rows: number) => void
   kill: (ptyId: string) => void
@@ -29,6 +29,7 @@ export interface WslBridge {
   writeFileRelative: (distro: string, rootPath: string, relativePath: string, content: string) => Promise<void>
   readTextRelative: (distro: string, rootPath: string, relativePath: string) => Promise<string | null>
   browseFolders: (distro: string, basePath: string) => Promise<string[]>
+  getHomePath: (distro: string) => Promise<string>
 }
 
 /** Pont preload Electron (voir `electron/preload.mjs`). */
@@ -46,9 +47,17 @@ export interface AetherDesktopBridge {
   wsl?: WslBridge
 }
 
+/** Raw IPC bridge exposed for LSP stdio relay. Channel-whitelisted in preload. */
+export interface AetherIpcBridge {
+  invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
+  send: (channel: string, ...args: unknown[]) => void
+  on: (channel: string, fn: (...args: unknown[]) => void) => () => void
+}
+
 declare global {
   interface Window {
     aetherDesktop?: AetherDesktopBridge
+    __aetherIpc?: AetherIpcBridge
   }
 }
 
