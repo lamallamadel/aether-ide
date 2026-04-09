@@ -1,9 +1,11 @@
-import { Bot, CornerDownLeft, Eye, EyeOff, FileCode, FolderOpen, Puzzle, Search, Server, Settings, Terminal, Unplug } from 'lucide-react'
+import { Bot, CornerDownLeft, Eye, EyeOff, FileCode, FolderOpen, Play, Puzzle, Search, Server, Settings, Terminal, Unplug } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FileNode } from '../domain/fileNode'
 import { useShallow } from 'zustand/react/shallow'
 import { SETTINGS_CATEGORIES } from '../config/settingsCategories'
 import { useEditorStore } from '../state/editorStore'
+import { useRunStore } from '../run/runStore'
+import { launchConfig } from '../run/runEngine'
 
 function getAllFiles(nodes: FileNode[]): FileNode[] {
   let result: FileNode[] = []
@@ -55,6 +57,11 @@ export function CommandPalette() {
   const [search, setSearch] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const { configurations: runConfigs, toggleBottomPanel } = useRunStore(
+    useShallow((s) => ({ configurations: s.configurations, toggleBottomPanel: s.toggleBottomPanel }))
+  )
+  const workspaceRootPath = useEditorStore((s) => s.workspaceRootPath)
 
   const fileList = useMemo(() => getAllFiles(files), [files])
   const filteredFiles = useMemo(() => {
@@ -146,8 +153,29 @@ export function CommandPalette() {
             },
           ]
         : []),
+      {
+        id: 'cmd-run-sidebar',
+        name: 'Run: Show Run Configurations',
+        type: 'command' as const,
+        icon: <Play size={14} />,
+        action: () => setSidebarView('run'),
+      },
+      {
+        id: 'cmd-run-panel',
+        name: 'Run: Toggle Run Panel',
+        type: 'command' as const,
+        icon: <Terminal size={14} />,
+        action: () => toggleBottomPanel(),
+      },
+      ...runConfigs.map((config) => ({
+        id: `cmd-run-${config.id}`,
+        name: `Run: ${config.name}`,
+        type: 'command' as const,
+        icon: <Play size={14} />,
+        action: () => void launchConfig(config, workspaceRootPath),
+      })),
     ],
-    [aiPanelVisible, disconnectRemote, openSettings, setSidebarView, setWslFolderPromptOpen, remoteConnection?.status, setGlobalSearchOpen, setMissionControlOpen, setRemotePickerOpen, sidebarVisible, toggleAiPanel, toggleSidebar]
+    [aiPanelVisible, disconnectRemote, openSettings, setSidebarView, setWslFolderPromptOpen, remoteConnection?.status, setGlobalSearchOpen, setMissionControlOpen, setRemotePickerOpen, sidebarVisible, toggleAiPanel, toggleSidebar, runConfigs, toggleBottomPanel, workspaceRootPath]
   )
 
   const filteredCommands = useMemo(() => {

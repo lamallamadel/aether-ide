@@ -10,7 +10,7 @@ import { MissionControl } from './components/MissionControl'
 import { RemotePickerModal } from './components/RemotePickerModal'
 import { RemoteToast } from './components/RemoteToast'
 import { WslFolderModal } from './components/WslFolderModal'
-import { TerminalPanel } from './components/TerminalPanel'
+import { RunPanel } from './components/run/RunPanel'
 import { Sidebar } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
 import { useShallow } from 'zustand/react/shallow'
@@ -26,14 +26,16 @@ import { ExternalHttpLspTransport } from './lsp/client/externalTransport'
 import { yamlLspClient } from './lsp/client/yamlLspClient'
 import { extensionHost } from './extensions/host'
 import { loadRuntimeEnvironment } from './config/environment'
+import { useRunStore } from './run/runStore'
 
 export default function App() {
-  const { files, activeFileId, terminalPanelOpen, terminalDock, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, openSettings, setSidebarView, aiMode, setPerf, setAiHealth, ideThemeColor, setIndexingError, toggleTerminalPanel, lspMode, externalLspEndpoint, setRuntimeEnvironment, hasFileHandle, saveFileToDisk } =
+  const { files, activeFileId, terminalDock, workspaceRootPath, workspaceHandle, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, openSettings, setSidebarView, aiMode, setPerf, setAiHealth, ideThemeColor, setIndexingError, lspMode, externalLspEndpoint, setRuntimeEnvironment, hasFileHandle, saveFileToDisk } =
     useEditorStore(useShallow((s) => ({
       files: s.files,
       activeFileId: s.activeFileId,
-      terminalPanelOpen: s.terminalPanelOpen,
       terminalDock: s.terminalDock,
+      workspaceRootPath: s.workspaceRootPath,
+      workspaceHandle: s.workspaceHandle,
       setCommandPaletteOpen: s.setCommandPaletteOpen,
       setGoToSymbolOpen: s.setGoToSymbolOpen,
       toggleSidebar: s.toggleSidebar,
@@ -45,13 +47,20 @@ export default function App() {
       setAiHealth: s.setAiHealth,
       ideThemeColor: s.ideThemeColor,
       setIndexingError: s.setIndexingError,
-      toggleTerminalPanel: s.toggleTerminalPanel,
       lspMode: s.lspMode,
       externalLspEndpoint: s.externalLspEndpoint,
       setRuntimeEnvironment: s.setRuntimeEnvironment,
       hasFileHandle: s.hasFileHandle,
       saveFileToDisk: s.saveFileToDisk,
     })))
+
+  const { toggleBottomPanel, bottomPanelOpen, loadConfigsFromWorkspace } = useRunStore(
+    useShallow((s) => ({
+      toggleBottomPanel: s.toggleBottomPanel,
+      bottomPanelOpen: s.bottomPanelOpen,
+      loadConfigsFromWorkspace: s.loadConfigsFromWorkspace,
+    }))
+  )
 
   useEffect(() => {
     const onAIClick = (e: Event) => {
@@ -121,6 +130,14 @@ export default function App() {
       })
   }, [files, setIndexingError])
 
+  // Load run configurations when workspace changes
+  useEffect(() => {
+    void loadConfigsFromWorkspace(
+      workspaceRootPath,
+      workspaceHandle as FileSystemDirectoryHandle | null
+    )
+  }, [workspaceRootPath, workspaceHandle, loadConfigsFromWorkspace])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target
@@ -156,9 +173,13 @@ export default function App() {
         e.preventDefault()
         setSidebarView('extensions')
       }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault()
+        setSidebarView('run')
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === '`') {
         e.preventDefault()
-        toggleTerminalPanel()
+        toggleBottomPanel()
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault()
@@ -170,7 +191,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeFileId, hasFileHandle, openSettings, saveFileToDisk, setCommandPaletteOpen, setGoToSymbolOpen, setSidebarView, toggleAiPanel, toggleSidebar, toggleTerminalPanel])
+  }, [activeFileId, hasFileHandle, openSettings, saveFileToDisk, setCommandPaletteOpen, setGoToSymbolOpen, setSidebarView, toggleAiPanel, toggleSidebar, toggleBottomPanel])
 
   useEffect(() => {
     if (aiMode !== 'local') return
@@ -224,7 +245,7 @@ export default function App() {
           <EditorArea />
           <AIChatPanel />
         </div>
-        {terminalPanelOpen && terminalDock === 'workspace' && <TerminalPanel />}
+        {bottomPanelOpen && terminalDock === 'workspace' && <RunPanel />}
       </div>
       <StatusBar />
       <CommandPalette />

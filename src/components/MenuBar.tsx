@@ -5,6 +5,8 @@ import { SETTINGS_CATEGORIES } from '../config/settingsCategories'
 import { useEditorStore } from '../state/editorStore'
 import { isSupported, pickDirectory } from '../services/fileSystem/fileSystemAccess'
 import { getWorkspaceShellKind, pickNativeWorkspaceRootPath } from '../services/fileSystem/workspaceBackend'
+import { useRunStore } from '../run/runStore'
+import { launchSelected, stopInstance } from '../run/runEngine'
 
 type MenuKey = 'File' | 'Edit' | 'Selection' | 'View' | 'Go' | 'Run' | 'Terminal' | 'Preferences' | 'Help'
 
@@ -82,6 +84,15 @@ export function MenuBar() {
       setRemotePickerOpen: s.setRemotePickerOpen,
       remoteConnection: s.remoteConnection,
       setWslFolderPromptOpen: s.setWslFolderPromptOpen,
+    }))
+  )
+
+  const { selectedConfigId, instances, toggleBottomPanel, configurations } = useRunStore(
+    useShallow((s) => ({
+      selectedConfigId: s.selectedConfigId,
+      instances: s.instances,
+      toggleBottomPanel: s.toggleBottomPanel,
+      configurations: s.configurations,
     }))
   )
 
@@ -252,31 +263,52 @@ export function MenuBar() {
       Run: [
         {
           kind: 'action',
+          id: 'run-selected',
+          label: selectedConfigId
+            ? `Run ${configurations.find((c) => c.id === selectedConfigId)?.name ?? 'Selected'}`
+            : 'Run Selected Configuration',
+          action: () => {
+            if (!selectedConfigId) { announce('No configuration selected'); return }
+            void launchSelected()
+          },
+        },
+        {
+          kind: 'action',
+          id: 'run-stop',
+          label: 'Stop Running Process',
+          action: () => {
+            const running = Object.values(instances).find(
+              (i) => i.configId === selectedConfigId && (i.state === 'running' || i.state === 'starting')
+            )
+            if (running) stopInstance(running.id)
+            else announce('No active process to stop')
+          },
+        },
+        { kind: 'separator', id: 'run-sep-1' },
+        { kind: 'action', id: 'run-show-sidebar', label: 'Show Run Sidebar', action: () => setSidebarView('run') },
+        { kind: 'action', id: 'run-show-panel', label: 'Show Run Panel', action: () => toggleBottomPanel() },
+        { kind: 'separator', id: 'run-sep-2' },
+        {
+          kind: 'action',
           id: 'run-npm-dev',
-          label: 'Run npm run dev (desktop)',
+          label: 'Quick Run: npm run dev',
           action: () => {
             const desk = getWorkspaceShellKind() === 'electron'
             const root = workspaceRootPath
-            if (!desk) {
-              announce('Packaged npm run requires Electron')
-              return
-            }
-            if (!root) {
-              announce('Open a workspace folder first')
-              return
-            }
+            if (!desk) { announce('Packaged npm run requires Electron'); return }
+            if (!root) { announce('Open a workspace folder first'); return }
             const bridge = typeof window !== 'undefined' ? window.aetherDesktop : undefined
             if (bridge?.runNpmScript) {
-              void bridge.runNpmScript(root, 'dev').then((r) => announce(r?.message ?? 'Started'))
+              void bridge.runNpmScript(root, 'dev').then((r: { message?: string }) => announce(r?.message ?? 'Started'))
             } else {
               announce('Run bridge unavailable')
             }
           },
         },
-        { kind: 'action', id: 'run-placeholder', label: '(More run targets — extend scripts)', action: () => announce('Configure npm scripts in package.json') },
       ],
       Terminal: [
         { kind: 'action', id: 'term-new', label: 'New Terminal', action: () => useEditorStore.getState().newTerminal() },
+        { kind: 'action', id: 'term-toggle', label: 'Toggle Panel', action: () => toggleBottomPanel() },
       ],
       Preferences: [
         { kind: 'action', id: 'prefs-open', label: 'Open Settings', action: () => openSettings({ open: true }) },
@@ -327,6 +359,10 @@ export function MenuBar() {
       setWslFolderPromptOpen,
       setRemotePickerOpen,
       setSidebarView,
+      selectedConfigId,
+      instances,
+      toggleBottomPanel,
+      configurations,
     ]
   )
 

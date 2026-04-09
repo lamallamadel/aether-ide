@@ -1,19 +1,22 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { Command, FileCode, Puzzle, Settings, X } from 'lucide-react'
+import { Command, FileCode, Puzzle, Play, Settings, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
-import { SPECIAL_TAB_SETTINGS, SPECIAL_TAB_EXT_DETAIL_PREFIX, isSpecialTab } from '../state/editorStore'
+import { SPECIAL_TAB_SETTINGS, SPECIAL_TAB_EXT_DETAIL_PREFIX, SPECIAL_TAB_RUN_CONFIG_PREFIX, isSpecialTab } from '../state/editorStore'
 import type { EditorSplitMode } from '../state/editorStore'
 import { CodeEditor } from './CodeEditor'
 import { EditorBreadcrumb } from './EditorBreadcrumb'
 import type { EditorMetrics } from './EditorPositionBar'
 import { EditorPositionBar } from './EditorPositionBar'
-import { TerminalPanel } from './TerminalPanel'
+import { RunPanel } from './run/RunPanel'
+import { RunToolbar } from './run/RunToolbar'
 import { WorktreeInlineBar } from './WorktreeInlineBar'
 import { AiQuickFixBar } from './AiQuickFixBar'
 import { SettingsView } from './SettingsView'
 import { ExtensionDetailView } from './extensions/ExtensionDetailView'
+import { RunConfigEditor } from './run/RunConfigEditor'
 import { useFileSync } from '../hooks/useFileSync'
+import { useRunStore } from '../run/runStore'
 
 const INITIAL_METRICS: EditorMetrics = { line: 1, column: 1, selectionLength: 0 }
 
@@ -21,6 +24,11 @@ function getTabLabel(fileId: string): string {
   if (fileId === SPECIAL_TAB_SETTINGS) return 'Settings'
   if (fileId.startsWith(SPECIAL_TAB_EXT_DETAIL_PREFIX))
     return fileId.slice(SPECIAL_TAB_EXT_DETAIL_PREFIX.length)
+  if (fileId.startsWith(SPECIAL_TAB_RUN_CONFIG_PREFIX)) {
+    const configId = fileId.slice(SPECIAL_TAB_RUN_CONFIG_PREFIX.length)
+    const config = useRunStore.getState().configurations.find((c) => c.id === configId)
+    return config?.name ?? 'Run Config'
+  }
   return fileId
 }
 
@@ -29,6 +37,8 @@ function TabIcon({ fileId, isActive }: { fileId: string; isActive: boolean }) {
     return <Settings size={12} className={isActive ? 'text-gray-300' : 'grayscale opacity-50'} />
   if (fileId.startsWith(SPECIAL_TAB_EXT_DETAIL_PREFIX))
     return <Puzzle size={12} className={isActive ? 'text-purple-400' : 'grayscale opacity-50'} />
+  if (fileId.startsWith(SPECIAL_TAB_RUN_CONFIG_PREFIX))
+    return <Play size={12} className={isActive ? 'text-green-400' : 'grayscale opacity-50'} />
   return <FileCode size={12} className={isActive ? 'text-cyan-400' : 'grayscale opacity-50'} />
 }
 
@@ -38,7 +48,7 @@ const TabSystem = memo(() => {
   )
 
   return (
-    <div className="flex h-9 bg-[#0a0a0a] border-b border-white/5 overflow-x-auto no-scrollbar">
+    <div className="flex h-full overflow-x-auto no-scrollbar">
       {openFiles.map((fileId) => (
         <div
           key={fileId}
@@ -124,8 +134,6 @@ export function EditorArea() {
     editorSplitRatio,
     setEditorSplitRatio,
     terminalDock,
-    terminalPanelOpen,
-    terminalPanelHeight,
   } = useEditorStore(
     useShallow((s) => ({
       activeFileId: s.activeFileId,
@@ -140,10 +148,10 @@ export function EditorArea() {
       editorSplitRatio: s.editorSplitRatio,
       setEditorSplitRatio: s.setEditorSplitRatio,
       terminalDock: s.terminalDock,
-      terminalPanelOpen: s.terminalPanelOpen,
-      terminalPanelHeight: s.terminalPanelHeight,
     }))
   )
+
+  const { bottomPanelOpen } = useRunStore(useShallow((s) => ({ bottomPanelOpen: s.bottomPanelOpen })))
   const { syncFile } = useFileSync()
   const content = activeFileId ? getFileContent(activeFileId) : '// Select a file to view content'
 
@@ -233,29 +241,44 @@ export function EditorArea() {
   const extDetailId = activeFileId?.startsWith(SPECIAL_TAB_EXT_DETAIL_PREFIX)
     ? activeFileId.slice(SPECIAL_TAB_EXT_DETAIL_PREFIX.length)
     : null
+  const runConfigId = activeFileId?.startsWith(SPECIAL_TAB_RUN_CONFIG_PREFIX)
+    ? activeFileId.slice(SPECIAL_TAB_RUN_CONFIG_PREFIX.length)
+    : null
 
   return (
     <div className="flex-1 flex flex-col bg-[#1e1e1e] relative overflow-hidden min-h-0">
-      <TabSystem />
+      {/* Tab bar + run toolbar */}
+      <div className="flex items-stretch h-9 bg-[#0a0a0a] border-b border-white/5 overflow-hidden">
+        <div className="flex-1 overflow-x-auto no-scrollbar">
+          <TabSystem />
+        </div>
+        <div className="shrink-0 border-l border-white/5 flex items-center">
+          <RunToolbar />
+        </div>
+      </div>
+
       {activeFileId && !isSpecialView ? <EditorBreadcrumb filePath={activeFileId} /> : null}
       {activeFileId && !isSpecialView ? <WorktreeInlineBar /> : null}
       {activeFileId && !isSpecialView ? <AiQuickFixBar /> : null}
       <div className="flex-1 relative overflow-hidden min-h-0 flex flex-col">
         {isSettingsTab ? (
-          <SettingsView />
+          <div className="absolute inset-0 flex flex-col min-h-0 overflow-hidden">
+            <SettingsView />
+          </div>
         ) : extDetailId ? (
-          <ExtensionDetailView extId={extDetailId} />
+          <div className="absolute inset-0 flex flex-col min-h-0 overflow-hidden">
+            <ExtensionDetailView extId={extDetailId} />
+          </div>
+        ) : runConfigId ? (
+          <div className="absolute inset-0 flex flex-col min-h-0 overflow-hidden">
+            <RunConfigEditor configId={runConfigId} />
+          </div>
         ) : activeFileId ? (
           <div className="absolute inset-0 flex flex-col min-h-0">
             <div className="flex-1 min-h-0 flex flex-col">{splitContent}</div>
             <EditorPositionBar metrics={displayedMetrics} />
-            {terminalDock === 'editor' && terminalPanelOpen ? (
-              <div
-                className="shrink-0 border-t border-white/10 max-h-[45%] min-h-[80px] flex flex-col"
-                style={{ height: terminalPanelHeight }}
-              >
-                <TerminalPanel embedded />
-              </div>
+            {terminalDock === 'editor' && bottomPanelOpen ? (
+              <RunPanel embedded />
             ) : null}
           </div>
         ) : (

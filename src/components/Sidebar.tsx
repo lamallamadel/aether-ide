@@ -4,6 +4,7 @@ import type { FileNode, FileType } from '../domain/fileNode'
 import { useEditorStore } from '../state/editorStore'
 import { useShallow } from 'zustand/react/shallow'
 import { ExtensionSidebar } from './extensions/ExtensionSidebar'
+import { RunSidebar } from './run/RunSidebar'
 
 function FileIcon({ name, type, isActive }: { name: string; type: FileType; isActive: boolean }) {
   const iconColor = isActive ? 'rgb(var(--color-primary-400))' : undefined
@@ -130,6 +131,14 @@ export function Sidebar() {
     return (
       <div className="w-64 h-full bg-[#111111] border-r border-white/5 flex flex-col shrink-0 min-h-0">
         <ExtensionSidebar />
+      </div>
+    )
+  }
+
+  if (sidebarView === 'run') {
+    return (
+      <div className="w-64 h-full bg-[#111111] border-r border-white/5 flex flex-col shrink-0 min-h-0">
+        <RunSidebar />
       </div>
     )
   }

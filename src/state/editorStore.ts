@@ -41,12 +41,15 @@ export type EditorSplitMode = 'none' | 'columns' | 'rows'
 /** Terminal : barre pleine largeur (historique) ou ancré sous la colonne éditeur. */
 export type TerminalDockMode = 'workspace' | 'editor'
 
-export type SidebarView = 'explorer' | 'extensions'
+export type SidebarView = 'explorer' | 'extensions' | 'run'
 
 export const SPECIAL_TAB_SETTINGS = '__settings__'
 export const SPECIAL_TAB_EXT_DETAIL_PREFIX = '__ext_detail__:'
+export const SPECIAL_TAB_RUN_CONFIG_PREFIX = '__run_config__:'
 export const isSpecialTab = (id: string) =>
-  id === SPECIAL_TAB_SETTINGS || id.startsWith(SPECIAL_TAB_EXT_DETAIL_PREFIX)
+  id === SPECIAL_TAB_SETTINGS ||
+  id.startsWith(SPECIAL_TAB_EXT_DETAIL_PREFIX) ||
+  id.startsWith(SPECIAL_TAB_RUN_CONFIG_PREFIX)
 
 export interface EditorState {
   files: FileNode[]
@@ -126,6 +129,7 @@ export interface EditorState {
   openSettings: (params?: { open?: boolean; category?: SettingsCategory }) => void
   setSidebarView: (view: SidebarView) => void
   openExtensionDetail: (extId: string) => void
+  openRunConfigEditor: (configId: string) => void
   setMissionControlOpen: (open: boolean) => void
   setTerminalPanelOpen: (open: boolean) => void
   setTerminalPanelHeight: (height: number) => void
@@ -478,6 +482,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSidebarView: (view) => set({ sidebarView: view, sidebarVisible: true }),
   openExtensionDetail: (extId) => {
     const tabId = `${SPECIAL_TAB_EXT_DETAIL_PREFIX}${extId}`
+    set((state) => ({
+      activeFileId: tabId,
+      openFiles: state.openFiles.includes(tabId) ? state.openFiles : [...state.openFiles, tabId],
+    }))
+  },
+  openRunConfigEditor: (configId) => {
+    const tabId = `${SPECIAL_TAB_RUN_CONFIG_PREFIX}${configId}`
     set((state) => ({
       activeFileId: tabId,
       openFiles: state.openFiles.includes(tabId) ? state.openFiles : [...state.openFiles, tabId],

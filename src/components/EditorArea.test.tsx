@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { INITIAL_FILES } from '../domain/fileNode'
 import { useEditorStore } from '../state/editorStore'
+import { useRunStore } from '../run/runStore'
 import { EditorArea } from './EditorArea'
 
 vi.mock('./CodeEditor', () => ({
@@ -77,11 +78,12 @@ describe('EditorArea', () => {
     expect(useEditorStore.getState().editorSplitRatio).toBeGreaterThan(0.5)
   })
 
-  it('embarque TerminalPanel quand dock éditeur et panneau ouvert', () => {
+  it('embarque RunPanel quand dock éditeur et panneau ouvert', () => {
     useEditorStore.setState({
       terminalDock: 'editor',
       terminalPanelOpen: true,
     })
+    useRunStore.setState({ bottomPanelOpen: true, bottomTabs: [{ id: 'tab-terminal', kind: 'terminal', label: 'Terminal', terminalSessionId: 0 }], activeBottomTabId: 'tab-terminal' })
     render(<EditorArea />)
     const dock = screen.getByText(/Terminal/).closest('.border-t')
     expect(dock).toBeTruthy()

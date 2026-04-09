@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { INITIAL_FILES } from '../domain/fileNode'
 import { useEditorStore } from '../state/editorStore'
+import { useRunStore } from '../run/runStore'
 import { ActivityBar } from './ActivityBar'
 
 beforeEach(() => {
@@ -13,6 +14,7 @@ beforeEach(() => {
     terminalPanelOpen: false,
     sidebarView: 'explorer',
   })
+  useRunStore.setState({ bottomPanelOpen: false })
 })
 
 describe('ActivityBar', () => {
@@ -31,11 +33,11 @@ describe('ActivityBar', () => {
     expect(useEditorStore.getState().commandPaletteOpen).toBe(true)
   })
 
-  it('Toggle Terminal bascule le panneau terminal', async () => {
+  it('Toggle Terminal bascule le panneau bottom', async () => {
     const user = userEvent.setup()
     render(<ActivityBar />)
     await user.click(screen.getByRole('button', { name: 'Toggle Terminal' }))
-    expect(useEditorStore.getState().terminalPanelOpen).toBe(true)
+    expect(useRunStore.getState().bottomPanelOpen).toBe(true)
   })
 
   it('Open Settings opens settings tab', async () => {

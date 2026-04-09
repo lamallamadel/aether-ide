@@ -6,6 +6,7 @@ import { INITIAL_FILES } from '../domain/fileNode'
 import { vectorStore } from '../services/db/VectorStore'
 import { workerBridge } from '../services/workers/WorkerBridge'
 import { useEditorStore } from '../state/editorStore'
+import { useRunStore } from '../run/runStore'
 import * as networkGuard from '../services/security/networkGuard'
 import App from '../App'
 
@@ -222,7 +223,7 @@ describe('App', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'l', ctrlKey: true }))
     expect(useEditorStore.getState().aiPanelVisible).toBe(false)
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '`', ctrlKey: true }))
-    expect(useEditorStore.getState().terminalPanelOpen).toBe(true)
+    expect(useRunStore.getState().bottomPanelOpen).toBe(true)
     window.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'O', ctrlKey: true, shiftKey: true })
     )
