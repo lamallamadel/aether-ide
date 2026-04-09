@@ -28,8 +28,8 @@ beforeEach(() => {
     globalSearchOpen: false,
     goToSymbolOpen: false,
     goToSymbolFilter: 'all',
-    settingsOpen: false,
     missionControlOpen: false,
+    sidebarView: 'explorer',
     terminalPanelOpen: false,
     terminalDock: 'workspace',
     editorSplit: 'none',
@@ -67,7 +67,9 @@ describe('App', () => {
   it('ouvre les settings avec Ctrl+,', async () => {
     render(<App />)
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ',', ctrlKey: true }))
-    expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(useEditorStore.getState().activeFileId).toBe('__settings__')
+    })
   }, 15000)
 
   it('intercepte Ctrl+S pour sauvegarder le fichier actif', async () => {
@@ -94,7 +96,9 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'View' }).getAttribute('tabindex')).toBe('0')
     expect(screen.getByRole('menuitem', { name: 'Open Settings' }).getAttribute('tabindex')).toBe('0')
     await user.click(screen.getByRole('menuitem', { name: 'Open Settings' }))
-    expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(useEditorStore.getState().activeFileId).toBe('__settings__')
+    })
   }, 15000)
 
   it('ferme le dropdown View au clic extérieur', async () => {

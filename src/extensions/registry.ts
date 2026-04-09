@@ -11,6 +11,14 @@ export class ExtensionRegistry {
     this.extensions.set(id, { module, state: 'installed' })
   }
 
+  unregister(id: string) {
+    this.extensions.delete(id)
+  }
+
+  has(id: string) {
+    return this.extensions.has(id)
+  }
+
   setState(id: string, next: RegisteredExtension['state'], lastError?: string) {
     const current = this.extensions.get(id)
     if (!current) throw new Error(`Unknown extension: ${id}`)

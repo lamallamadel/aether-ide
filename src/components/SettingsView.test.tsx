@@ -1,12 +1,11 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { useEditorStore } from '../state/editorStore'
-import { SettingsModal } from './SettingsModal'
+import { SettingsView } from './SettingsView'
 
 beforeEach(() => {
   useEditorStore.setState({
-    settingsOpen: false,
     settingsCategory: 'editor',
     editorFontSizePx: 14,
     editorMinimap: true,
@@ -27,35 +26,28 @@ beforeEach(() => {
       externalLspEndpoint: '',
       sourceByField: { aiMode: 'runtime', lspMode: 'runtime', externalLspEndpoint: 'fallback' },
     },
+    sidebarView: 'explorer',
   })
 })
 
-describe('SettingsModal', () => {
-  it('renders null when settingsOpen is false', () => {
-    const { container } = render(<SettingsModal />)
-    expect(container.firstChild).toBeNull()
-  })
-
-  it('renders dialog and categories when opened', () => {
-    useEditorStore.setState({ settingsOpen: true })
-    render(<SettingsModal />)
-    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
+describe('SettingsView', () => {
+  it('renders categories and search', () => {
+    render(<SettingsView />)
+    expect(screen.getByRole('textbox', { name: 'Search settings' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Theme' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Extensions' })).toBeInTheDocument()
   })
 
   it('changes active category from navigation', async () => {
     const user = userEvent.setup()
-    useEditorStore.setState({ settingsOpen: true })
-    render(<SettingsModal />)
+    render(<SettingsView />)
     await user.click(screen.getByRole('button', { name: 'Servers' }))
     expect(screen.getByText('LSP Mode')).toBeInTheDocument()
     expect(useEditorStore.getState().settingsCategory).toBe('servers')
   })
 
   it('filters categories with search', () => {
-    useEditorStore.setState({ settingsOpen: true })
-    render(<SettingsModal />)
+    render(<SettingsView />)
     const search = screen.getByRole('textbox', { name: 'Search settings' })
     fireEvent.change(search, { target: { value: 'key' } })
     const nav = screen.getByRole('navigation', { name: 'Settings categories' })
@@ -65,41 +57,11 @@ describe('SettingsModal', () => {
 
   it('font size +/- buttons update editorFontSizePx in editor panel', async () => {
     const user = userEvent.setup()
-    useEditorStore.setState({ settingsOpen: true, settingsCategory: 'editor' })
-    render(<SettingsModal />)
+    useEditorStore.setState({ settingsCategory: 'editor' })
+    render(<SettingsView />)
     await user.click(screen.getByRole('button', { name: '+' }))
     expect(useEditorStore.getState().editorFontSizePx).toBe(15)
     await user.click(screen.getByRole('button', { name: '-' }))
     expect(useEditorStore.getState().editorFontSizePx).toBe(14)
-  })
-
-  it('escape clears search before closing modal', async () => {
-    const user = userEvent.setup()
-    useEditorStore.setState({ settingsOpen: true })
-    render(<SettingsModal />)
-    const input = screen.getByRole('textbox', { name: 'Search settings' })
-    fireEvent.change(input, { target: { value: 'env' } })
-    await user.keyboard('{Escape}')
-    expect(useEditorStore.getState().settingsOpen).toBe(true)
-    expect((input as HTMLInputElement).value).toBe('')
-    await user.keyboard('{Escape}')
-    expect(useEditorStore.getState().settingsOpen).toBe(false)
-  })
-
-  it('focus trap handles Tab on last element', () => {
-    useEditorStore.setState({ settingsOpen: true })
-    render(<SettingsModal />)
-    const dialog = screen.getByRole('dialog', { name: 'Settings' })
-    const focusable = dialog.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    )
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-    const focusSpy = vi.spyOn(first, 'focus')
-    last.focus()
-    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
-    window.dispatchEvent(event)
-    expect(event.defaultPrevented).toBe(true)
-    expect(focusSpy).toHaveBeenCalled()
   })
 })

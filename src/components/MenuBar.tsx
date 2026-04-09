@@ -21,8 +21,8 @@ export function MenuBar() {
     openSettings,
     commandPaletteOpen,
     globalSearchOpen,
-    settingsOpen,
     missionControlOpen,
+    setSidebarView,
     toggleSidebar,
     toggleAiPanel,
     createUntitledFile,
@@ -56,8 +56,8 @@ export function MenuBar() {
       openSettings: s.openSettings,
       commandPaletteOpen: s.commandPaletteOpen,
       globalSearchOpen: s.globalSearchOpen,
-      settingsOpen: s.settingsOpen,
       missionControlOpen: s.missionControlOpen,
+      setSidebarView: s.setSidebarView,
       toggleSidebar: s.toggleSidebar,
       toggleAiPanel: s.toggleAiPanel,
       createUntitledFile: s.createUntitledFile,
@@ -287,6 +287,8 @@ export function MenuBar() {
           label: category.label,
           action: () => openSettings({ open: true, category: category.id }),
         })),
+        { kind: 'separator', id: 'prefs-sep-2' },
+        { kind: 'action', id: 'prefs-ext-manager', label: 'Extension Manager', action: () => setSidebarView('extensions') },
       ],
       Help: [
         { kind: 'action', id: 'help-welcome', label: 'Welcome', action: () => announce('Welcome') },
@@ -324,6 +326,7 @@ export function MenuBar() {
       remoteConnection,
       setWslFolderPromptOpen,
       setRemotePickerOpen,
+      setSidebarView,
     ]
   )
 
@@ -371,9 +374,9 @@ export function MenuBar() {
 
   useEffect(() => {
     if (!activeMenu && !mobileOpen) return
-    if (!commandPaletteOpen && !globalSearchOpen && !settingsOpen && !missionControlOpen) return
+    if (!commandPaletteOpen && !globalSearchOpen && !missionControlOpen) return
     closeAll()
-  }, [activeMenu, commandPaletteOpen, globalSearchOpen, missionControlOpen, mobileOpen, settingsOpen])
+  }, [activeMenu, commandPaletteOpen, globalSearchOpen, missionControlOpen, mobileOpen])
 
   const onMenuButtonKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, key: MenuKey) => {
     if (e.key === 'Enter' || e.key === ' ') {

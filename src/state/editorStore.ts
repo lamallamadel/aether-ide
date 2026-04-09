@@ -41,6 +41,13 @@ export type EditorSplitMode = 'none' | 'columns' | 'rows'
 /** Terminal : barre pleine largeur (historique) ou ancré sous la colonne éditeur. */
 export type TerminalDockMode = 'workspace' | 'editor'
 
+export type SidebarView = 'explorer' | 'extensions'
+
+export const SPECIAL_TAB_SETTINGS = '__settings__'
+export const SPECIAL_TAB_EXT_DETAIL_PREFIX = '__ext_detail__:'
+export const isSpecialTab = (id: string) =>
+  id === SPECIAL_TAB_SETTINGS || id.startsWith(SPECIAL_TAB_EXT_DETAIL_PREFIX)
+
 export interface EditorState {
   files: FileNode[]
   fileHandles: Record<string, FileSystemFileHandle>
@@ -50,13 +57,13 @@ export interface EditorState {
   activeFileId: string | null
   openFiles: string[]
   sidebarVisible: boolean
+  sidebarView: SidebarView
   aiPanelVisible: boolean
   commandPaletteOpen: boolean
   globalSearchOpen: boolean
   goToSymbolOpen: boolean
   /** Filtre symboles dans Go to Symbol : tout ou classes uniquement. */
   goToSymbolFilter: 'all' | 'class'
-  settingsOpen: boolean
   settingsCategory: SettingsCategory
   missionControlOpen: boolean
   terminalPanelOpen: boolean
@@ -115,9 +122,10 @@ export interface EditorState {
   setActiveEditorPane: (pane: 'primary' | 'secondary') => void
   setEditorSplitRatio: (ratio: number) => void
   setTerminalDock: (dock: TerminalDockMode) => void
-  setSettingsOpen: (open: boolean) => void
   setSettingsCategory: (category: SettingsCategory) => void
-  openSettings: (params?: { open: boolean; category?: SettingsCategory }) => void
+  openSettings: (params?: { open?: boolean; category?: SettingsCategory }) => void
+  setSidebarView: (view: SidebarView) => void
+  openExtensionDetail: (extId: string) => void
   setMissionControlOpen: (open: boolean) => void
   setTerminalPanelOpen: (open: boolean) => void
   setTerminalPanelHeight: (height: number) => void
@@ -342,12 +350,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   activeFileId: 'App.tsx',
   openFiles: ['App.tsx', 'main.tsx'],
   sidebarVisible: true,
+  sidebarView: 'explorer' as SidebarView,
   aiPanelVisible: true,
   commandPaletteOpen: false,
   globalSearchOpen: false,
   goToSymbolOpen: false,
   goToSymbolFilter: 'all' as const,
-  settingsOpen: false,
   settingsCategory: (() => {
     if (typeof window === 'undefined') return DEFAULT_SETTINGS_CATEGORY
     const value = window.localStorage.getItem(SETTINGS_CATEGORY_STORAGE_KEY)
@@ -445,20 +453,34 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setEditorSplitRatio: (ratio) =>
     set({ editorSplitRatio: Math.min(0.85, Math.max(0.15, ratio)) }),
   setTerminalDock: (dock) => set({ terminalDock: dock }),
-  setSettingsOpen: (open) => set({ settingsOpen: open }),
   setSettingsCategory: (category) => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(SETTINGS_CATEGORY_STORAGE_KEY, category)
     }
     set({ settingsCategory: category })
   },
-  openSettings: ({ open, category } = { open: true }) => {
+  openSettings: ({ open = true, category } = {}) => {
     if (category && typeof window !== 'undefined') {
       window.localStorage.setItem(SETTINGS_CATEGORY_STORAGE_KEY, category)
     }
+    if (open) {
+      set((state) => ({
+        settingsCategory: category ?? state.settingsCategory,
+        activeFileId: SPECIAL_TAB_SETTINGS,
+        openFiles: state.openFiles.includes(SPECIAL_TAB_SETTINGS)
+          ? state.openFiles
+          : [...state.openFiles, SPECIAL_TAB_SETTINGS],
+      }))
+    } else {
+      get().closeFile(SPECIAL_TAB_SETTINGS)
+    }
+  },
+  setSidebarView: (view) => set({ sidebarView: view, sidebarVisible: true }),
+  openExtensionDetail: (extId) => {
+    const tabId = `${SPECIAL_TAB_EXT_DETAIL_PREFIX}${extId}`
     set((state) => ({
-      settingsOpen: open,
-      settingsCategory: category ?? state.settingsCategory,
+      activeFileId: tabId,
+      openFiles: state.openFiles.includes(tabId) ? state.openFiles : [...state.openFiles, tabId],
     }))
   },
   setMissionControlOpen: (open) => set({ missionControlOpen: open }),

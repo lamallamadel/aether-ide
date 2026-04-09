@@ -1,7 +1,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { Command, FileCode, X } from 'lucide-react'
+import { Command, FileCode, Puzzle, Settings, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
+import { SPECIAL_TAB_SETTINGS, SPECIAL_TAB_EXT_DETAIL_PREFIX, isSpecialTab } from '../state/editorStore'
 import type { EditorSplitMode } from '../state/editorStore'
 import { CodeEditor } from './CodeEditor'
 import { EditorBreadcrumb } from './EditorBreadcrumb'
@@ -10,9 +11,26 @@ import { EditorPositionBar } from './EditorPositionBar'
 import { TerminalPanel } from './TerminalPanel'
 import { WorktreeInlineBar } from './WorktreeInlineBar'
 import { AiQuickFixBar } from './AiQuickFixBar'
+import { SettingsView } from './SettingsView'
+import { ExtensionDetailView } from './extensions/ExtensionDetailView'
 import { useFileSync } from '../hooks/useFileSync'
 
 const INITIAL_METRICS: EditorMetrics = { line: 1, column: 1, selectionLength: 0 }
+
+function getTabLabel(fileId: string): string {
+  if (fileId === SPECIAL_TAB_SETTINGS) return 'Settings'
+  if (fileId.startsWith(SPECIAL_TAB_EXT_DETAIL_PREFIX))
+    return fileId.slice(SPECIAL_TAB_EXT_DETAIL_PREFIX.length)
+  return fileId
+}
+
+function TabIcon({ fileId, isActive }: { fileId: string; isActive: boolean }) {
+  if (fileId === SPECIAL_TAB_SETTINGS)
+    return <Settings size={12} className={isActive ? 'text-gray-300' : 'grayscale opacity-50'} />
+  if (fileId.startsWith(SPECIAL_TAB_EXT_DETAIL_PREFIX))
+    return <Puzzle size={12} className={isActive ? 'text-purple-400' : 'grayscale opacity-50'} />
+  return <FileCode size={12} className={isActive ? 'text-cyan-400' : 'grayscale opacity-50'} />
+}
 
 const TabSystem = memo(() => {
   const { openFiles, activeFileId, setActiveFile, closeFile } = useEditorStore(
@@ -34,9 +52,9 @@ const TabSystem = memo(() => {
           }}
         >
           <span className="mr-2">
-            <FileCode size={12} className={activeFileId === fileId ? 'text-cyan-400' : 'grayscale opacity-50'} />
+            <TabIcon fileId={fileId} isActive={activeFileId === fileId} />
           </span>
-          <span className="truncate flex-1">{fileId}</span>
+          <span className="truncate flex-1">{getTabLabel(fileId)}</span>
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -210,14 +228,24 @@ export function EditorArea() {
       </div>
     )
 
+  const isSpecialView = activeFileId ? isSpecialTab(activeFileId) : false
+  const isSettingsTab = activeFileId === SPECIAL_TAB_SETTINGS
+  const extDetailId = activeFileId?.startsWith(SPECIAL_TAB_EXT_DETAIL_PREFIX)
+    ? activeFileId.slice(SPECIAL_TAB_EXT_DETAIL_PREFIX.length)
+    : null
+
   return (
     <div className="flex-1 flex flex-col bg-[#1e1e1e] relative overflow-hidden min-h-0">
       <TabSystem />
-      {activeFileId ? <EditorBreadcrumb filePath={activeFileId} /> : null}
-      {activeFileId ? <WorktreeInlineBar /> : null}
-      {activeFileId ? <AiQuickFixBar /> : null}
+      {activeFileId && !isSpecialView ? <EditorBreadcrumb filePath={activeFileId} /> : null}
+      {activeFileId && !isSpecialView ? <WorktreeInlineBar /> : null}
+      {activeFileId && !isSpecialView ? <AiQuickFixBar /> : null}
       <div className="flex-1 relative overflow-hidden min-h-0 flex flex-col">
-        {activeFileId ? (
+        {isSettingsTab ? (
+          <SettingsView />
+        ) : extDetailId ? (
+          <ExtensionDetailView extId={extDetailId} />
+        ) : activeFileId ? (
           <div className="absolute inset-0 flex flex-col min-h-0">
             <div className="flex-1 min-h-0 flex flex-col">{splitContent}</div>
             <EditorPositionBar metrics={displayedMetrics} />

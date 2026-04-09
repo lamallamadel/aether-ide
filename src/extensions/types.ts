@@ -2,7 +2,7 @@ export type ExtensionPermission = 'workspace.read' | 'workspace.search' | 'netwo
 
 export type ActivationEvent = 'onStartup' | `onCommand:${string}` | `onLanguage:${string}`
 
-export type ExtensionLifecycleState = 'installed' | 'activating' | 'active' | 'error'
+export type ExtensionLifecycleState = 'installed' | 'activating' | 'active' | 'error' | 'disabled'
 
 export type ExtensionRuntime = 'in-process' | 'sandbox' | 'remote'
 
@@ -14,6 +14,9 @@ export type ExtensionManifest = {
   trusted: boolean
   activationEvents: ActivationEvent[]
   permissions: ExtensionPermission[]
+  description?: string
+  author?: string
+  iconUrl?: string
   contributes?: {
     commands?: Array<{ id: string; title: string }>
     languages?: Array<{ id: string; extensions: string[] }>
@@ -38,4 +41,14 @@ export type RegisteredExtension = {
   module: ExtensionModule
   state: ExtensionLifecycleState
   lastError?: string
+}
+
+export type MarketplaceExtension = ExtensionManifest & {
+  description: string
+  author: string
+  readme: string
+  downloadCount: number
+  rating: number
+  installed?: boolean
+  category?: string
 }

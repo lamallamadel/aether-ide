@@ -35,8 +35,8 @@ beforeEach(() => {
     commandPaletteOpen: false,
     globalSearchOpen: false,
     goToSymbolOpen: false,
-    settingsOpen: false,
     missionControlOpen: false,
+    sidebarView: 'explorer',
     sidebarVisible: true,
     aiPanelVisible: false,
     editorSplit: 'none',
@@ -59,21 +59,24 @@ describe('MenuBar', () => {
     expect(screen.getByRole('menuitem', { name: 'New Terminal' })).toBeInTheDocument()
   })
 
-  it('New Terminal toggles terminalPanelOpen', async () => {
+  it('New Terminal opens terminal and increments session', async () => {
     const user = userEvent.setup()
     render(<MenuBar />)
 
     expect(useEditorStore.getState().terminalPanelOpen).toBe(false)
+    const initialSession = useEditorStore.getState().terminalSessionId
 
     await user.click(screen.getByRole('button', { name: 'Terminal' }))
     await user.click(screen.getByRole('menuitem', { name: 'New Terminal' }))
 
     expect(useEditorStore.getState().terminalPanelOpen).toBe(true)
+    expect(useEditorStore.getState().terminalSessionId).toBe(initialSession + 1)
 
     await user.click(screen.getByRole('button', { name: 'Terminal' }))
     await user.click(screen.getByRole('menuitem', { name: 'New Terminal' }))
 
-    expect(useEditorStore.getState().terminalPanelOpen).toBe(false)
+    expect(useEditorStore.getState().terminalPanelOpen).toBe(true)
+    expect(useEditorStore.getState().terminalSessionId).toBe(initialSession + 2)
   })
 
   it('View menu contains Open Settings', async () => {
@@ -89,7 +92,7 @@ describe('MenuBar', () => {
     render(<MenuBar />)
     await user.click(screen.getByRole('button', { name: 'Preferences' }))
     await user.click(screen.getByRole('menuitem', { name: 'Environment' }))
-    expect(useEditorStore.getState().settingsOpen).toBe(true)
+    expect(useEditorStore.getState().activeFileId).toBe('__settings__')
     expect(useEditorStore.getState().settingsCategory).toBe('environment')
   })
 

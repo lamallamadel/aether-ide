@@ -11,7 +11,7 @@ beforeEach(() => {
     sidebarVisible: true,
     commandPaletteOpen: false,
     terminalPanelOpen: false,
-    settingsOpen: false,
+    sidebarView: 'explorer',
   })
 })
 
@@ -38,10 +38,19 @@ describe('ActivityBar', () => {
     expect(useEditorStore.getState().terminalPanelOpen).toBe(true)
   })
 
-  it('Open Settings ouvre les paramètres', async () => {
+  it('Open Settings opens settings tab', async () => {
     const user = userEvent.setup()
     render(<ActivityBar />)
     await user.click(screen.getByRole('button', { name: 'Open Settings' }))
-    expect(useEditorStore.getState().settingsOpen).toBe(true)
+    expect(useEditorStore.getState().activeFileId).toBe('__settings__')
+    expect(useEditorStore.getState().openFiles).toContain('__settings__')
+  })
+
+  it('Extensions button switches sidebar to extensions view', async () => {
+    const user = userEvent.setup()
+    render(<ActivityBar />)
+    await user.click(screen.getByRole('button', { name: 'Extensions' }))
+    expect(useEditorStore.getState().sidebarView).toBe('extensions')
+    expect(useEditorStore.getState().sidebarVisible).toBe(true)
   })
 })

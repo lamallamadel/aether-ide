@@ -1,4 +1,4 @@
-import { Bot, CornerDownLeft, Eye, EyeOff, FileCode, FolderOpen, Search, Server, Settings, Terminal, Unplug } from 'lucide-react'
+import { Bot, CornerDownLeft, Eye, EyeOff, FileCode, FolderOpen, Puzzle, Search, Server, Settings, Terminal, Unplug } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FileNode } from '../domain/fileNode'
 import { useShallow } from 'zustand/react/shallow'
@@ -31,6 +31,7 @@ export function CommandPalette() {
     disconnectRemote,
     remoteConnection,
     setWslFolderPromptOpen,
+    setSidebarView,
   } = useEditorStore(
     useShallow((s) => ({
       commandPaletteOpen: s.commandPaletteOpen,
@@ -48,6 +49,7 @@ export function CommandPalette() {
       disconnectRemote: s.disconnectRemote,
       remoteConnection: s.remoteConnection,
       setWslFolderPromptOpen: s.setWslFolderPromptOpen,
+      setSidebarView: s.setSidebarView,
     }))
   )
   const [search, setSearch] = useState('')
@@ -106,6 +108,20 @@ export function CommandPalette() {
         action: () => openSettings({ open: true, category: category.id }),
       })),
       {
+        id: 'cmd-extensions',
+        name: 'Extensions: Show Installed Extensions',
+        type: 'command' as const,
+        icon: <Puzzle size={14} />,
+        action: () => setSidebarView('extensions'),
+      },
+      {
+        id: 'cmd-extensions-marketplace',
+        name: 'Extensions: Search Marketplace',
+        type: 'command' as const,
+        icon: <Puzzle size={14} />,
+        action: () => setSidebarView('extensions'),
+      },
+      {
         id: 'cmd-remote-connect',
         name: 'Remote: Connect to WSL...',
         type: 'command' as const,
@@ -131,7 +147,7 @@ export function CommandPalette() {
           ]
         : []),
     ],
-    [aiPanelVisible, disconnectRemote, openSettings, setWslFolderPromptOpen, remoteConnection?.status, setGlobalSearchOpen, setMissionControlOpen, setRemotePickerOpen, sidebarVisible, toggleAiPanel, toggleSidebar]
+    [aiPanelVisible, disconnectRemote, openSettings, setSidebarView, setWslFolderPromptOpen, remoteConnection?.status, setGlobalSearchOpen, setMissionControlOpen, setRemotePickerOpen, sidebarVisible, toggleAiPanel, toggleSidebar]
   )
 
   const filteredCommands = useMemo(() => {

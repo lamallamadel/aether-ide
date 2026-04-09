@@ -10,7 +10,6 @@ import { MissionControl } from './components/MissionControl'
 import { RemotePickerModal } from './components/RemotePickerModal'
 import { RemoteToast } from './components/RemoteToast'
 import { WslFolderModal } from './components/WslFolderModal'
-import { SettingsModal } from './components/SettingsModal'
 import { TerminalPanel } from './components/TerminalPanel'
 import { Sidebar } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
@@ -29,7 +28,7 @@ import { extensionHost } from './extensions/host'
 import { loadRuntimeEnvironment } from './config/environment'
 
 export default function App() {
-  const { files, activeFileId, terminalPanelOpen, terminalDock, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, openSettings, aiMode, setPerf, setAiHealth, ideThemeColor, setIndexingError, toggleTerminalPanel, lspMode, externalLspEndpoint, setRuntimeEnvironment, hasFileHandle, saveFileToDisk } =
+  const { files, activeFileId, terminalPanelOpen, terminalDock, setCommandPaletteOpen, setGoToSymbolOpen, toggleSidebar, toggleAiPanel, openSettings, setSidebarView, aiMode, setPerf, setAiHealth, ideThemeColor, setIndexingError, toggleTerminalPanel, lspMode, externalLspEndpoint, setRuntimeEnvironment, hasFileHandle, saveFileToDisk } =
     useEditorStore(useShallow((s) => ({
       files: s.files,
       activeFileId: s.activeFileId,
@@ -40,6 +39,7 @@ export default function App() {
       toggleSidebar: s.toggleSidebar,
       toggleAiPanel: s.toggleAiPanel,
       openSettings: s.openSettings,
+      setSidebarView: s.setSidebarView,
       aiMode: s.aiMode,
       setPerf: s.setPerf,
       setAiHealth: s.setAiHealth,
@@ -152,6 +152,10 @@ export default function App() {
         e.preventDefault()
         setGoToSymbolOpen(true)
       }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'x') {
+        e.preventDefault()
+        setSidebarView('extensions')
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === '`') {
         e.preventDefault()
         toggleTerminalPanel()
@@ -166,7 +170,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeFileId, hasFileHandle, openSettings, saveFileToDisk, setCommandPaletteOpen, setGoToSymbolOpen, toggleAiPanel, toggleSidebar, toggleTerminalPanel])
+  }, [activeFileId, hasFileHandle, openSettings, saveFileToDisk, setCommandPaletteOpen, setGoToSymbolOpen, setSidebarView, toggleAiPanel, toggleSidebar, toggleTerminalPanel])
 
   useEffect(() => {
     if (aiMode !== 'local') return
@@ -226,7 +230,6 @@ export default function App() {
       <CommandPalette />
       <GlobalSearch />
       <GoToSymbol />
-      <SettingsModal />
       <MissionControl />
       <RemotePickerModal />
       <WslFolderModal />

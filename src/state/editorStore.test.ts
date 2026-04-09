@@ -69,8 +69,8 @@ beforeEach(() => {
     globalSearchOpen: false,
     goToSymbolOpen: false,
     goToSymbolFilter: 'all',
-    settingsOpen: false,
     settingsCategory: 'editor',
+    sidebarView: 'explorer',
     missionControlOpen: false,
     terminalPanelOpen: false,
     terminalPanelHeight: 200,
@@ -223,14 +223,12 @@ describe('editorStore', () => {
     expect(useEditorStore.getState().editorMinimap).toBe(false)
   })
 
-  it('setMissionControlOpen, setGlobalSearchOpen, setSettingsOpen', () => {
-    const { setMissionControlOpen, setGlobalSearchOpen, setSettingsOpen } = useEditorStore.getState()
+  it('setMissionControlOpen, setGlobalSearchOpen', () => {
+    const { setMissionControlOpen, setGlobalSearchOpen } = useEditorStore.getState()
     setMissionControlOpen(true)
     expect(useEditorStore.getState().missionControlOpen).toBe(true)
     setGlobalSearchOpen(true)
     expect(useEditorStore.getState().globalSearchOpen).toBe(true)
-    setSettingsOpen(true)
-    expect(useEditorStore.getState().settingsOpen).toBe(true)
   })
 
   it('setSettingsCategory persiste la catégorie', () => {
@@ -240,14 +238,15 @@ describe('editorStore', () => {
     expect(window.localStorage.getItem(SETTINGS_CATEGORY_STORAGE_KEY)).toBe('servers')
   })
 
-  it('openSettings ouvre avec catégorie optionnelle', () => {
+  it('openSettings opens settings tab with optional category', () => {
     const { openSettings } = useEditorStore.getState()
     openSettings({ open: true, category: 'environment' })
-    expect(useEditorStore.getState().settingsOpen).toBe(true)
+    expect(useEditorStore.getState().activeFileId).toBe('__settings__')
+    expect(useEditorStore.getState().openFiles).toContain('__settings__')
     expect(useEditorStore.getState().settingsCategory).toBe('environment')
     expect(window.localStorage.getItem(SETTINGS_CATEGORY_STORAGE_KEY)).toBe('environment')
     openSettings({ open: false })
-    expect(useEditorStore.getState().settingsOpen).toBe(false)
+    expect(useEditorStore.getState().openFiles).not.toContain('__settings__')
     expect(useEditorStore.getState().settingsCategory).toBe('environment')
   })
 
