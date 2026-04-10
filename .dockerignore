@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+dist
+.git
+.gitignore
+README.md
+CONTRIBUTING.md
+docs
+.github
+.vercel
+.cursor
+.trae
+electron
+release
+*.md
+.env
+.env.*
