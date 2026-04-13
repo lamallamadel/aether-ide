@@ -13,6 +13,9 @@ export type RunConfigType =
   | 'node'      // node <file>
   | 'shell'     // shell command
   | 'wsl'       // shell command inside connected WSL distro
+  | 'aether'    // compile + run .aether file via aethercc in WSL
+  | 'cmake'     // cmake --build (for aether-lang/core/rt)
+  | 'python'    // python3 script or module
 
 /** Environment variable overrides for a run configuration */
 export type EnvVars = Record<string, string>
@@ -30,6 +33,14 @@ export interface RunConfiguration {
   nodeFile?: string
   /** For type=shell | wsl: command string */
   command?: string
+  /** For type=aether: path to .aether source file (relative to workspace) */
+  aetherFile?: string
+  /** For type=cmake: build target (default: all) */
+  cmakeTarget?: string
+  /** For type=cmake: build directory (default: build) */
+  cmakeBuildDir?: string
+  /** For type=python: module or script path */
+  pythonModule?: string
   /** Extra environment variables merged over process.env */
   env?: EnvVars
   /** Arguments appended after the main command */

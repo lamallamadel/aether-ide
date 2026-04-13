@@ -12,8 +12,10 @@ import { EnvironmentSettings } from './settings/EnvironmentSettings'
 import { KeybindingsSettings } from './settings/KeybindingsSettings'
 import { WorkspaceSettings } from './settings/WorkspaceSettings'
 import { ExtensionsSettings } from './settings/ExtensionsSettings'
+import { ProjectSettings } from './settings/ProjectSettings'
 
 const PANEL_MAP: Record<SettingsCategory, React.FC> = {
+  project: ProjectSettings,
   theme: ThemeSettings,
   editor: EditorSettings,
   languages: LanguageSettings,

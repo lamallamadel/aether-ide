@@ -185,7 +185,17 @@ export default function App() {
         e.preventDefault()
         if (!activeFileId) return
         if (!hasFileHandle(activeFileId)) return
-        void saveFileToDisk(activeFileId)
+        void saveFileToDisk(activeFileId).then((ok) => {
+          if (!ok || !activeFileId.endsWith('.aether')) return
+          const ps = useEditorStore.getState().projectSettings
+          if (!ps?.compileOnSave) return
+          const content = useEditorStore.getState().getFileContent(activeFileId)
+          import('./services/syntax/syntaxClient').then(({ parseFileContent }) => {
+            parseFileContent('aether', content).then((res) => {
+              useEditorStore.getState().setDiagnosticsForFile(activeFileId, res.diagnostics)
+            })
+          })
+        })
       }
     }
 

@@ -9,6 +9,9 @@ import { useEditorStore } from '../../state/editorStore'
 import type { RunConfiguration } from '../../run/types'
 
 const TYPE_LABELS: Record<string, string> = {
+  aether: 'aether',
+  cmake: 'cmake',
+  python: 'python',
   npm: 'npm',
   node: 'node',
   shell: 'shell',
@@ -16,6 +19,9 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 const TYPE_COLORS: Record<string, string> = {
+  aether: 'text-purple-400',
+  cmake: 'text-cyan-400',
+  python: 'text-yellow-400',
   npm: 'text-green-400',
   node: 'text-yellow-400',
   shell: 'text-cyan-400',
@@ -65,7 +71,13 @@ export function RunConfigCard({ config, isSelected, onSelect, onEdit }: Props) {
   const typeLabel = TYPE_LABELS[config.type] ?? config.type
   const typeColor = TYPE_COLORS[config.type] ?? 'text-gray-400'
   const subLabel =
-    config.type === 'npm'
+    config.type === 'aether'
+      ? `aethercc ${config.aetherFile ?? 'main.aether'}`
+      : config.type === 'cmake'
+      ? `cmake --build ${config.cmakeBuildDir ?? 'build'}${config.cmakeTarget ? ` --target ${config.cmakeTarget}` : ''}`
+      : config.type === 'python'
+      ? `python3 ${config.pythonModule ?? 'main.py'}`
+      : config.type === 'npm'
       ? `npm run ${config.npmScript ?? '?'}`
       : config.type === 'node'
       ? config.nodeFile ?? 'index.js'

@@ -552,4 +552,21 @@ describe('editorStore', () => {
     await Promise.resolve()
     expect(writeWorkspaceProjectConfig).toHaveBeenCalledWith(expect.anything(), {})
   })
+
+  it('setDiagnosticsForFile stores and retrieves diagnostics', () => {
+    useEditorStore.getState().setDiagnosticsForFile('test.aether', [
+      { message: 'Unbalanced braces', severity: 'error', line: 5 },
+      { message: 'Invalid yield target', severity: 'warning', line: 10 },
+    ])
+    const diags = useEditorStore.getState().diagnosticsByFile['test.aether']
+    expect(diags).toHaveLength(2)
+    expect(diags[0].severity).toBe('error')
+    expect(diags[1].message).toContain('yield')
+  })
+
+  it('setDiagnosticsForFile replaces previous diagnostics for same file', () => {
+    useEditorStore.getState().setDiagnosticsForFile('x.aether', [{ message: 'a', severity: 'error', line: 1 }])
+    useEditorStore.getState().setDiagnosticsForFile('x.aether', [])
+    expect(useEditorStore.getState().diagnosticsByFile['x.aether']).toEqual([])
+  })
 })

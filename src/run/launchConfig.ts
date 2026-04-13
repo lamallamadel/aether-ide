@@ -5,9 +5,12 @@
 import type { RunConfiguration, LaunchFileV1 } from './types'
 import { nativeReadTextRelative, nativeWriteFileRelative } from '../services/fileSystem/electronNativeWorkspace'
 
-export const AETHER_PROJECT_DIR = '.aether'
+export const AETHER_PROJECT_DIR = '.aetheride'
 export const LAUNCH_CONFIG_FILE = 'launch.json'
 const LAUNCH_CONFIG_PATH = `${AETHER_PROJECT_DIR}/${LAUNCH_CONFIG_FILE}`
+
+const LEGACY_PROJECT_DIR = '.aether'
+const LEGACY_LAUNCH_CONFIG_PATH = `${LEGACY_PROJECT_DIR}/${LAUNCH_CONFIG_FILE}`
 
 // ---------------------------------------------------------------------------
 // Parse / serialize
@@ -41,13 +44,15 @@ export function serializeLaunchJson(configurations: RunConfiguration[]): string 
 // ---------------------------------------------------------------------------
 
 export async function readLaunchConfigs(workspaceRootPath: string): Promise<RunConfiguration[]> {
-  try {
-    const text = await nativeReadTextRelative(workspaceRootPath, LAUNCH_CONFIG_PATH)
-    if (text === null) return []
-    return parseLaunchJson(text)
-  } catch {
-    return []
+  for (const path of [LAUNCH_CONFIG_PATH, LEGACY_LAUNCH_CONFIG_PATH]) {
+    try {
+      const text = await nativeReadTextRelative(workspaceRootPath, path)
+      if (text === null) continue
+      const configs = parseLaunchJson(text)
+      if (configs.length > 0) return configs
+    } catch { /* try next */ }
   }
+  return []
 }
 
 export async function writeLaunchConfigs(
@@ -64,15 +69,17 @@ export async function writeLaunchConfigs(
 export async function readLaunchConfigsFsa(
   rootHandle: FileSystemDirectoryHandle
 ): Promise<RunConfiguration[]> {
-  try {
-    const dir = await rootHandle.getDirectoryHandle(AETHER_PROJECT_DIR)
-    const fileHandle = await dir.getFileHandle(LAUNCH_CONFIG_FILE)
-    const file = await fileHandle.getFile()
-    const text = await file.text()
-    return parseLaunchJson(text)
-  } catch {
-    return []
+  for (const dirName of [AETHER_PROJECT_DIR, LEGACY_PROJECT_DIR]) {
+    try {
+      const dir = await rootHandle.getDirectoryHandle(dirName)
+      const fileHandle = await dir.getFileHandle(LAUNCH_CONFIG_FILE)
+      const file = await fileHandle.getFile()
+      const text = await file.text()
+      const configs = parseLaunchJson(text)
+      if (configs.length > 0) return configs
+    } catch { /* try next */ }
   }
+  return []
 }
 
 export async function writeLaunchConfigsFsa(
@@ -158,4 +165,131 @@ export function makeShellConfig(command: string, name?: string): RunConfiguratio
     type: 'shell',
     command,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Aether ecosystem configuration helpers
+// ---------------------------------------------------------------------------
+
+export function makeAetherConfig(aetherFile: string, cwd?: string): RunConfiguration {
+  const baseName = aetherFile.replace(/\.aether$/, '').split('/').pop() ?? 'main'
+  return {
+    id: generateConfigId(),
+    name: `Aether: ${baseName}`,
+    type: 'aether',
+    aetherFile,
+    cwd,
+    pinned: true,
+  }
+}
+
+export function makeCmakeConfig(target?: string, buildDir?: string, cwd?: string, name?: string): RunConfiguration {
+  return {
+    id: generateConfigId(),
+    name: name ?? `CMake: ${target ?? 'all'}`,
+    type: 'cmake',
+    cmakeTarget: target,
+    cmakeBuildDir: buildDir ?? 'build',
+    cwd,
+  }
+}
+
+export function makePythonConfig(module: string, cwd?: string, name?: string): RunConfiguration {
+  return {
+    id: generateConfigId(),
+    name: name ?? `Python: ${module}`,
+    type: 'python',
+    pythonModule: module,
+    cwd,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Multi-project detection for Aether ecosystem
+// ---------------------------------------------------------------------------
+
+export interface DetectedProject {
+  type: 'npm' | 'aether' | 'cmake' | 'python'
+  label: string
+  config: Partial<RunConfiguration>
+}
+
+export async function detectAetherProjects(workspaceRootPath: string): Promise<DetectedProject[]> {
+  const projects: DetectedProject[] = []
+
+  // Check for CMakeLists.txt → cmake build
+  const cmakeContent = await nativeReadTextRelative(workspaceRootPath, 'CMakeLists.txt').catch(() => null)
+  if (cmakeContent) {
+    const projectMatch = cmakeContent.match(/project\s*\(\s*([^\s)]+)/i)
+    const projectName = projectMatch?.[1] ?? 'project'
+    projects.push({
+      type: 'cmake',
+      label: `CMake: build ${projectName}`,
+      config: { type: 'cmake', cmakeBuildDir: 'build', name: `CMake: ${projectName}` },
+    })
+  }
+
+  // Check for Makefile → shell make (possibly aethercc)
+  const makeContent = await nativeReadTextRelative(workspaceRootPath, 'Makefile').catch(() => null)
+  if (makeContent) {
+    if (makeContent.includes('aethercc') || makeContent.includes('aether-compile')) {
+      projects.push({
+        type: 'aether',
+        label: 'Make: build Aether examples',
+        config: { type: 'shell', command: 'make', name: 'Make: build Aether' },
+      })
+    } else {
+      projects.push({
+        type: 'cmake',
+        label: 'Make: build',
+        config: { type: 'shell', command: 'make', name: 'Make: build' },
+      })
+    }
+  }
+
+  // Check for pyproject.toml → python
+  const pyprojectContent = await nativeReadTextRelative(workspaceRootPath, 'pyproject.toml').catch(() => null)
+  if (pyprojectContent) {
+    const nameMatch = pyprojectContent.match(/name\s*=\s*"([^"]+)"/)
+    const pyName = nameMatch?.[1] ?? 'app'
+    projects.push({
+      type: 'python',
+      label: `Python: ${pyName}`,
+      config: { type: 'python', pythonModule: `${pyName.replace(/-/g, '_')}`, name: `Python: ${pyName}` },
+    })
+    // Also suggest pip install -e
+    projects.push({
+      type: 'python',
+      label: `pip install -e . (${pyName})`,
+      config: { type: 'shell', command: 'pip install -e .[dev]', name: `pip install ${pyName}` },
+    })
+  }
+
+  // Check for package.json → npm (already handled, but detect project name)
+  const pkgContent = await nativeReadTextRelative(workspaceRootPath, 'package.json').catch(() => null)
+  if (pkgContent) {
+    try {
+      const pkg = JSON.parse(pkgContent) as Record<string, unknown>
+      const scripts = pkg.scripts
+      if (scripts && typeof scripts === 'object' && !Array.isArray(scripts)) {
+        const scriptNames = Object.keys(scripts as Record<string, unknown>)
+        for (const s of scriptNames.slice(0, 8)) {
+          projects.push({
+            type: 'npm',
+            label: `npm run ${s}`,
+            config: { type: 'npm', npmScript: s, name: `npm run ${s}` },
+          })
+        }
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
+  return projects
+}
+
+/** Detect .aether files in the workspace for compile-and-run configs */
+export async function detectAetherFiles(_workspaceRootPath: string): Promise<string[]> {
+  // Directory listing via nativeReadTextRelative is not supported;
+  // file discovery relies on the workspace file tree in editorStore.
+  return []
 }

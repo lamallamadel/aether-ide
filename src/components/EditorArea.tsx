@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { Command, FileCode, Puzzle, Play, Settings, X } from 'lucide-react'
+import { Command, FileCode, Puzzle, Play, Settings, Sparkles, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
 import { SPECIAL_TAB_SETTINGS, SPECIAL_TAB_EXT_DETAIL_PREFIX, SPECIAL_TAB_RUN_CONFIG_PREFIX, isSpecialTab } from '../state/editorStore'
@@ -39,6 +39,8 @@ function TabIcon({ fileId, isActive }: { fileId: string; isActive: boolean }) {
     return <Puzzle size={12} className={isActive ? 'text-purple-400' : 'grayscale opacity-50'} />
   if (fileId.startsWith(SPECIAL_TAB_RUN_CONFIG_PREFIX))
     return <Play size={12} className={isActive ? 'text-green-400' : 'grayscale opacity-50'} />
+  if (fileId.endsWith('.aether'))
+    return <Sparkles size={12} className={isActive ? 'text-purple-400' : 'grayscale opacity-50'} />
   return <FileCode size={12} className={isActive ? 'text-cyan-400' : 'grayscale opacity-50'} />
 }
 

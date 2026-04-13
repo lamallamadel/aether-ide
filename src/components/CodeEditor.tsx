@@ -21,6 +21,7 @@ import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
 import { markdown } from '@codemirror/lang-markdown'
 import { yaml } from '@codemirror/lang-yaml'
+import { aether, aetherCompletions } from '../lang-aether'
 import { gutter, GutterMarker } from '@codemirror/view'
 import { useEffect, useMemo, useRef } from 'react'
 import type { ExtractedSymbol } from '../services/syntax/syntaxTypes'
@@ -29,25 +30,11 @@ import type { SerializedNode, SerializedTree } from '../services/syntax/syntaxTy
 // --- Syntax Highlighting ---
 import { bracketMatching, foldGutter, foldKeymap, syntaxHighlighting, HighlightStyle } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
+import { linter, type Diagnostic } from '@codemirror/lint'
+import type { LspDiagnostic } from '../lsp/server/aetherEmbeddedServer'
 
-/** Complétions mock type Cursor / JetBrains (mots-clés + snippets courants). */
 function aetherInlineCompletions(context: CompletionContext) {
-  const word = context.matchBefore(/[\w.]*/)
-  if (!word?.text && !context.explicit) return null
-  const from = word?.from ?? context.pos
-  return {
-    from,
-    options: [
-      { label: 'function', type: 'keyword' },
-      { label: 'const', type: 'keyword' },
-      { label: 'return', type: 'keyword' },
-      { label: 'async', type: 'keyword' },
-      { label: 'await', type: 'keyword' },
-      { label: 'useState', type: 'function', detail: 'React' },
-      { label: 'useEffect', type: 'function', detail: 'React' },
-      { label: 'console.log', type: 'function' },
-    ],
-  }
+  return aetherCompletions(context)
 }
 
 const aetherHighlightStyle = HighlightStyle.define([
@@ -90,6 +77,23 @@ const collectErrorLines = (node: SerializedNode): number[] => {
 }
 
 const EMPTY_SYMBOLS: ExtractedSymbol[] = []
+const EMPTY_DIAGNOSTICS: LspDiagnostic[] = []
+
+function lspDiagnosticsToCodeMirror(doc: string, diags: LspDiagnostic[]): Diagnostic[] {
+  const lines = doc.split('\n')
+  return diags.map((d) => {
+    const lineIdx = Math.max(0, Math.min(d.line - 1, lines.length - 1))
+    const lineText = lines[lineIdx] ?? ''
+    const from = lines.slice(0, lineIdx).reduce((acc, l) => acc + l.length + 1, 0)
+    const to = from + lineText.length
+    return {
+      from,
+      to: Math.max(from + 1, to),
+      severity: d.severity === 'error' ? 'error' : 'warning',
+      message: d.message,
+    }
+  })
+}
 
 const buildGutterData = (
   content: string,
@@ -158,14 +162,14 @@ const aiGutter = gutter({
 // --- End AI Gutter ---
 
 function languageForFile(fileId: string | null) {
-  if (!fileId) return markdown()
+  if (!fileId) return aether()
   const lower = fileId.toLowerCase()
   if (lower.endsWith('.yaml') || lower.endsWith('.yml')) return yaml()
-  if (lower.endsWith('.aether')) return markdown()
+  if (lower.endsWith('.aether')) return aether()
   if (lower.endsWith('.ts') || lower.endsWith('.tsx') || lower.endsWith('.js') || lower.endsWith('.jsx')) return javascript({ typescript: true })
   if (lower.endsWith('.json')) return json()
   if (lower.endsWith('.md') || lower.endsWith('.markdown')) return markdown()
-  return markdown()
+  return aether()
 }
 
 const getThemeConfig = (theme: string) => {
@@ -250,9 +254,11 @@ export function CodeEditor(props: {
   const minimapCompartment = useRef(new Compartment()).current
   const aiGutterDataCompartment = useRef(new Compartment()).current
   const fileIdFacetCompartment = useRef(new Compartment()).current
+  const lintCompartment = useRef(new Compartment()).current
 
   const symbols = useEditorStore(useShallow((s) => s.symbolsByFile[fileId ?? ''] ?? EMPTY_SYMBOLS))
   const syntaxTree = useEditorStore(useShallow((s) => s.syntaxTrees[fileId ?? '']))
+  const lspDiagnostics = useEditorStore(useShallow((s) => s.diagnosticsByFile[fileId ?? ''] ?? EMPTY_DIAGNOSTICS))
 
   const gutterData = useMemo(
     () => buildGutterData(value, symbols, syntaxTree),
@@ -350,6 +356,9 @@ export function CodeEditor(props: {
             : showMinimap.of(null)
         ),
         aiGutterDataCompartment.of(aiGutterDataFacet.of(gutterData)),
+        lintCompartment.of(
+          linter((view) => lspDiagnosticsToCodeMirror(view.state.doc.toString(), lspDiagnostics), { delay: 0 })
+        ),
       ],
     })
 
@@ -479,6 +488,17 @@ export function CodeEditor(props: {
     if (!view) return
     view.dispatch({ effects: fileIdFacetCompartment.reconfigure(aetherFileIdFacet.of(fileId)) })
   }, [fileId])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    const diagsSnapshot = lspDiagnostics
+    view.dispatch({
+      effects: lintCompartment.reconfigure(
+        linter((view) => lspDiagnosticsToCodeMirror(view.state.doc.toString(), diagsSnapshot), { delay: 0 })
+      ),
+    })
+  }, [lspDiagnostics])
 
   useEffect(() => {
     const onGotoSymbol = (event: Event) => {

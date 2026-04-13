@@ -3,6 +3,7 @@
  * manages instance lifecycle, and feeds output to runStore.
  */
 import type { RunConfiguration, RunInstance } from './types'
+import type { AetherSdk } from '../config/projectConfig'
 import { useRunStore } from './runStore'
 
 let _instanceCounter = 0
@@ -16,46 +17,81 @@ function nowIso(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Shell escaping — prevents command injection via user-controlled fields
+// ---------------------------------------------------------------------------
+
+function shellEscape(s: string): string {
+  if (/^[a-zA-Z0-9_.\/~$:=-]+$/.test(s)) return s
+  return `'${s.replace(/'/g, "'\\''")}'`
+}
+
+function escapeArgs(args: string[] | undefined): string {
+  if (!args?.length) return ''
+  return ' ' + args.map(shellEscape).join(' ')
+}
+
+// ---------------------------------------------------------------------------
 // Resolve the shell command from a RunConfiguration
 // ---------------------------------------------------------------------------
 
 interface ResolvedCommand {
   shell?: string
   shellArgs?: string[]
-  /** Command injected into the shell */
   cmd: string
   cwd?: string
   env?: Record<string, string>
 }
 
-function resolveCommand(config: RunConfiguration, workspaceRoot: string | null): ResolvedCommand {
+function resolveCommand(config: RunConfiguration, workspaceRoot: string | null, sdk?: AetherSdk | null): ResolvedCommand {
   const cwd = config.cwd || workspaceRoot || undefined
   const env = config.env ?? {}
 
   switch (config.type) {
     case 'npm': {
-      const script = config.npmScript ?? 'dev'
-      const argsStr = config.args?.length ? ` -- ${config.args.join(' ')}` : ''
+      const script = shellEscape(config.npmScript ?? 'dev')
+      const argsStr = config.args?.length ? ` -- ${escapeArgs(config.args).trim()}` : ''
       return { cmd: `npm run ${script}${argsStr}`, cwd, env }
     }
     case 'node': {
-      const file = config.nodeFile ?? 'index.js'
-      const argsStr = config.args?.length ? ` ${config.args.join(' ')}` : ''
-      return { cmd: `node ${file}${argsStr}`, cwd, env }
+      const file = shellEscape(config.nodeFile ?? 'index.js')
+      return { cmd: `node ${file}${escapeArgs(config.args)}`, cwd, env }
     }
     case 'shell': {
-      const argsStr = config.args?.length ? ` ${config.args.join(' ')}` : ''
-      return { cmd: `${config.command ?? 'echo "no command"'}${argsStr}`, cwd, env }
+      return { cmd: `${config.command ?? 'echo "no command"'}${escapeArgs(config.args)}`, cwd, env }
     }
     case 'wsl': {
-      const argsStr = config.args?.length ? ` ${config.args.join(' ')}` : ''
       return {
         shell: 'wsl.exe',
         shellArgs: [],
-        cmd: `${config.command ?? 'echo "no command"'}${argsStr}`,
+        cmd: `${config.command ?? 'echo "no command"'}${escapeArgs(config.args)}`,
         cwd,
         env,
       }
+    }
+    case 'aether': {
+      const file = shellEscape(config.aetherFile ?? 'main.aether')
+      const baseName = shellEscape(
+        (config.aetherFile ?? 'main.aether').replace(/\.aether$/, '').split('/').pop() ?? 'aether_main'
+      )
+      const compiler = shellEscape(sdk?.aetherccPath || 'aethercc')
+      const rtLib = shellEscape(sdk?.runtimeLibPath || '$HOME/work/aether-rt/build')
+      const linker = shellEscape(sdk?.clangPath || 'clang')
+      const compileAndRun = [
+        `${compiler} ${file} --emit-obj -o build/${baseName}.o`,
+        `${linker} build/${baseName}.o -L${rtLib} -laether-rt -o build/${baseName}`,
+        `./build/${baseName}${escapeArgs(config.args)}`,
+      ].join(' && ')
+      return { shell: 'wsl.exe', shellArgs: [], cmd: `mkdir -p build && ${compileAndRun}`, cwd, env }
+    }
+    case 'cmake': {
+      const buildDir = shellEscape(config.cmakeBuildDir ?? 'build')
+      const target = config.cmakeTarget ? ` --target ${shellEscape(config.cmakeTarget)}` : ''
+      return { cmd: `cmake --build ${buildDir}${target}${escapeArgs(config.args)}`, cwd, env }
+    }
+    case 'python': {
+      const module = config.pythonModule ?? 'main.py'
+      const argsStr = config.args?.length ? ` ${config.args.join(' ')}` : ''
+      return { cmd: `python3 ${module}${argsStr}`, cwd, env }
     }
     default:
       return { cmd: 'echo "unknown config type"', cwd, env }
@@ -108,22 +144,23 @@ export async function launchConfig(
     store.updateInstance(instanceId, {
       state: 'error',
       finishedAt: nowIso(),
-      outputLines: ['[PTY unavailable — Electron required to run processes]'],
     })
     store.appendOutput(instanceId, '[PTY unavailable — Electron required to run processes]\r\n')
     return instanceId
   }
 
   try {
-    const resolved = resolveCommand(config, workspaceRoot)
+    // Read SDK from project settings for Aether configs
+    const { useEditorStore } = await import('../state/editorStore')
+    const projectSdk = useEditorStore.getState().projectSettings?.sdk ?? null
+    const resolved = resolveCommand(config, workspaceRoot, projectSdk)
 
     // Determine shell and initial command to inject
     let shellExe: string | undefined = resolved.shell
     let shellArgs: string[] = resolved.shellArgs ?? []
 
-    // For WSL configs use wsl.exe; otherwise default shell
-    if (config.type === 'wsl') {
-      const { useEditorStore } = await import('../state/editorStore')
+    // For WSL and aether configs, attach the connected distro
+    if (config.type === 'wsl' || config.type === 'aether') {
       const conn = useEditorStore.getState().remoteConnection
       if (conn?.type === 'wsl' && conn.distro) {
         shellExe = 'wsl.exe'
@@ -230,4 +267,24 @@ export async function launchSelected(): Promise<string | null> {
   const { useEditorStore } = await import('../state/editorStore')
   const workspaceRoot = useEditorStore.getState().workspaceRootPath
   return launchConfig(config, workspaceRoot)
+}
+
+/**
+ * Launch the currently active .aether file (compile + run).
+ * Creates a temporary configuration without persisting it.
+ */
+export async function launchActiveFile(): Promise<string | null> {
+  const { useEditorStore } = await import('../state/editorStore')
+  const { activeFileId, workspaceRootPath } = useEditorStore.getState()
+  if (!activeFileId || !activeFileId.endsWith('.aether')) return null
+
+  const baseName = activeFileId.replace(/\.aether$/, '').split('/').pop() ?? 'main'
+  const tempConfig: RunConfiguration = {
+    id: `temp-${Date.now()}`,
+    name: `Run: ${baseName}.aether`,
+    type: 'aether',
+    aetherFile: activeFileId,
+  }
+
+  return launchConfig(tempConfig, workspaceRootPath)
 }

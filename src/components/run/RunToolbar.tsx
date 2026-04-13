@@ -3,10 +3,10 @@
  * Rendered inside the EditorArea header row.
  */
 import { useState, useRef, useEffect } from 'react'
-import { Play, Square, RotateCcw, ChevronDown, Settings2 } from 'lucide-react'
+import { Play, Square, RotateCcw, ChevronDown, Settings2, Sparkles } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useRunStore } from '../../run/runStore'
-import { launchSelected, stopInstance, restartInstance } from '../../run/runEngine'
+import { launchSelected, stopInstance, restartInstance, launchActiveFile } from '../../run/runEngine'
 import { useEditorStore } from '../../state/editorStore'
 
 export function RunToolbar() {
@@ -26,9 +26,11 @@ export function RunToolbar() {
     }))
   )
 
-  const { openRunConfigEditor } = useEditorStore(
-    useShallow((s) => ({ openRunConfigEditor: s.openRunConfigEditor }))
+  const { openRunConfigEditor, activeFileId } = useEditorStore(
+    useShallow((s) => ({ openRunConfigEditor: s.openRunConfigEditor, activeFileId: s.activeFileId }))
   )
+
+  const isAetherFile = activeFileId?.endsWith('.aether') ?? false
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -75,10 +77,25 @@ export function RunToolbar() {
     }
   }
 
-  if (configurations.length === 0) return null
+  if (configurations.length === 0 && !isAetherFile) return null
 
   return (
     <div className="flex items-center gap-1 px-2 shrink-0">
+      {/* Run Active .aether File */}
+      {isAetherFile && (
+        <button
+          type="button"
+          title={`Run ${activeFileId}`}
+          onClick={() => void launchActiveFile().then(() => openBottomPanel())}
+          className="flex items-center gap-1 px-2 h-6 rounded text-[11px] text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 transition-colors"
+        >
+          <Sparkles size={10} />
+          <span className="truncate max-w-[100px]">Run</span>
+        </button>
+      )}
+      {configurations.length === 0 ? null : (
+        <>
+      
       {/* Config selector */}
       <div className="relative" ref={dropdownRef}>
         <button
@@ -167,6 +184,8 @@ export function RunToolbar() {
       >
         <RotateCcw size={12} />
       </button>
+        </>
+      )}
     </div>
   )
 }

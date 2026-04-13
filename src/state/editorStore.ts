@@ -4,7 +4,7 @@ import { INITIAL_FILES } from '../domain/fileNode'
 import type { ExtractedSymbol, SerializedTree } from '../services/syntax/syntaxTypes'
 import type { PerfMetrics } from '../services/perf/perfMonitor'
 import { readDirectoryRecursive, writeFileContent } from '../services/fileSystem/fileSystemAccess'
-import type { AetherLspMode } from '../lsp/server/aetherEmbeddedServer'
+import type { AetherLspMode, LspDiagnostic } from '../lsp/server/aetherEmbeddedServer'
 import type { RuntimeEnvironment, WorkspaceEnvironment, WorkspaceEnvironmentStatus, ResolvedEnvironment } from '../config/environment'
 import { resolveEnvironment } from '../config/environment'
 import { DEFAULT_SETTINGS_CATEGORY, isSettingsCategory, SETTINGS_CATEGORY_STORAGE_KEY, type SettingsCategory } from '../config/settingsCategories'
@@ -17,6 +17,8 @@ import {
 import { nativeLoadWorkspace, nativeWriteFileRelative } from '../services/fileSystem/electronNativeWorkspace'
 import type { WorkspaceProvider } from '../services/fileSystem/workspaceProvider'
 import type { RemoteConnectionStatus } from '../types/aether-desktop'
+import type { AetherProject, AetherSdk } from '../config/projectConfig'
+import { readProjectConfig, writeProjectConfig, readProjectConfigFsa, writeProjectConfigFsa, createDefaultProject, detectProjectType } from '../config/projectConfig'
 
 let _connectionEpoch = 0
 
@@ -100,6 +102,11 @@ export interface EditorState {
   _untitledCounter: number
   syntaxTrees: Record<string, SerializedTree>
   symbolsByFile: Record<string, ExtractedSymbol[]>
+  /** LSP diagnostics per file (errors, warnings). */
+  diagnosticsByFile: Record<string, LspDiagnostic[]>
+
+  /** Aether project settings loaded from .aetheride/project.json (null if not initialized). */
+  projectSettings: AetherProject | null
 
   /** Active remote connection (null = local). */
   remoteConnection: RemoteConnection | null
@@ -116,6 +123,7 @@ export interface EditorState {
   setActiveFile: (fileId: string) => void
   setFileContent: (fileId: string, content: string) => void
   setSyntaxForFile: (fileId: string, tree: SerializedTree, symbols: ExtractedSymbol[]) => void
+  setDiagnosticsForFile: (fileId: string, diagnostics: LspDiagnostic[]) => void
   toggleSidebar: () => void
   toggleAiPanel: () => void
   setCommandPaletteOpen: (open: boolean) => void
@@ -173,6 +181,10 @@ export interface EditorState {
   /** Quick fix / gutter IA : contexte ou null si fermé. */
   aiQuickFixContext: { fileId: string; line: number; kind: 'warning' | 'suggestion' } | null
   setAiQuickFixContext: (ctx: EditorState['aiQuickFixContext']) => void
+
+  setProjectSettings: (project: AetherProject | null) => void
+  updateProjectSdk: (sdk: Partial<AetherSdk>) => void
+  initProjectIfNeeded: () => Promise<void>
 
   setRemotePickerOpen: (open: boolean) => void
   setWslFolderPromptOpen: (open: boolean) => void
@@ -401,6 +413,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   _untitledCounter: 1,
   syntaxTrees: {},
   symbolsByFile: {},
+  diagnosticsByFile: {},
+
+  projectSettings: null,
 
   remoteConnection: null,
   activeProvider: null,
@@ -437,6 +452,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setActiveFile: (fileId) => set({ activeFileId: fileId }),
   setFileContent: (fileId, content) => set((state) => ({ files: updateFileContentInTree(state.files, fileId, content) })),
   setSyntaxForFile: (fileId, tree, symbols) => set((state) => ({ syntaxTrees: { ...state.syntaxTrees, [fileId]: tree }, symbolsByFile: { ...state.symbolsByFile, [fileId]: symbols } })),
+  setDiagnosticsForFile: (fileId, diagnostics) => set((state) => ({ diagnosticsByFile: { ...state.diagnosticsByFile, [fileId]: diagnostics } })),
   toggleSidebar: () => set((state) => ({ sidebarVisible: !state.sidebarVisible })),
   toggleAiPanel: () => set((state) => ({ aiPanelVisible: !state.aiPanelVisible })),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
@@ -682,13 +698,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         worktreeChanges: {},
         syntaxTrees: {},
         symbolsByFile: {},
+        diagnosticsByFile: {},
         workspaceEnvironment,
         workspaceEnvironmentStatus: 'ready',
         aiMode: resolved.aiMode,
         lspMode: resolved.lspMode,
         externalLspEndpoint: resolved.externalLspEndpoint,
         resolvedEnvironment: resolved,
+        projectSettings: null,
       })
+      const project = await readProjectConfigFsa(handle).catch(() => null)
+      if (project) set({ projectSettings: project })
     } catch (err) {
       console.error('loadProjectFromDirectory failed', err)
       set({ indexingError: err instanceof Error ? err.message : 'Failed to load project', workspaceEnvironmentStatus: 'degraded' })
@@ -727,13 +747,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         worktreeChanges: {},
         syntaxTrees: {},
         symbolsByFile: {},
+        diagnosticsByFile: {},
         workspaceEnvironment,
         workspaceEnvironmentStatus: 'ready',
         aiMode: resolved.aiMode,
         lspMode: resolved.lspMode,
         externalLspEndpoint: resolved.externalLspEndpoint,
         resolvedEnvironment: resolved,
+        projectSettings: null,
       })
+      const project = await readProjectConfig(rootPath).catch(() => null)
+      if (project) set({ projectSettings: project })
     } catch (err) {
       console.error('loadProjectFromNativePath failed', err)
       set({
@@ -799,6 +823,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           let syntaxTrees = state.syntaxTrees
           let symbolsByFile = state.symbolsByFile
           let worktreeChanges = state.worktreeChanges
+          let diagnosticsByFile = state.diagnosticsByFile
           if (fileId !== normalized) {
             if (state.syntaxTrees[fileId] !== undefined) {
               syntaxTrees = { ...state.syntaxTrees }
@@ -809,6 +834,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
               symbolsByFile = { ...state.symbolsByFile }
               symbolsByFile[normalized] = symbolsByFile[fileId]
               delete symbolsByFile[fileId]
+            }
+            if (state.diagnosticsByFile[fileId] !== undefined) {
+              diagnosticsByFile = { ...state.diagnosticsByFile }
+              diagnosticsByFile[normalized] = diagnosticsByFile[fileId]
+              delete diagnosticsByFile[fileId]
             }
             if (state.worktreeChanges[fileId] !== undefined) {
               worktreeChanges = { ...state.worktreeChanges }
@@ -823,6 +853,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             openFiles,
             syntaxTrees,
             symbolsByFile,
+            diagnosticsByFile,
             worktreeChanges,
           }
         })
@@ -855,6 +886,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         let syntaxTrees = state.syntaxTrees
         let symbolsByFile = state.symbolsByFile
         let worktreeChanges = state.worktreeChanges
+        let diagnosticsByFile = state.diagnosticsByFile
         if (fileId !== normalized) {
           if (state.syntaxTrees[fileId] !== undefined) {
             syntaxTrees = { ...state.syntaxTrees }
@@ -865,6 +897,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             symbolsByFile = { ...state.symbolsByFile }
             symbolsByFile[normalized] = symbolsByFile[fileId]
             delete symbolsByFile[fileId]
+          }
+          if (state.diagnosticsByFile[fileId] !== undefined) {
+            diagnosticsByFile = { ...state.diagnosticsByFile }
+            diagnosticsByFile[normalized] = diagnosticsByFile[fileId]
+            delete diagnosticsByFile[fileId]
           }
           if (state.worktreeChanges[fileId] !== undefined) {
             worktreeChanges = { ...state.worktreeChanges }
@@ -881,6 +918,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           openFiles,
           syntaxTrees,
           symbolsByFile,
+          diagnosticsByFile,
           worktreeChanges,
         }
       })
@@ -916,6 +954,55 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   aiQuickFixContext: null,
   setAiQuickFixContext: (ctx) => set({ aiQuickFixContext: ctx }),
+
+  setProjectSettings: (project) => {
+    set({ projectSettings: project })
+    if (project) {
+      const { workspaceRootPath, workspaceHandle } = get()
+      if (workspaceRootPath) {
+        void writeProjectConfig(workspaceRootPath, project).catch((err) =>
+          console.error('writeProjectConfig failed', err)
+        )
+      } else if (workspaceHandle) {
+        void writeProjectConfigFsa(workspaceHandle, project).catch((err) =>
+          console.error('writeProjectConfigFsa failed', err)
+        )
+      }
+    }
+  },
+
+  updateProjectSdk: (sdkPatch) => {
+    const current = get().projectSettings
+    if (!current) return
+    const updated: AetherProject = {
+      ...current,
+      sdk: { ...current.sdk, ...sdkPatch },
+    }
+    get().setProjectSettings(updated)
+  },
+
+  initProjectIfNeeded: async () => {
+    const { workspaceRootPath, workspaceHandle, projectSettings, activeWorkspaceId } = get()
+    if (projectSettings) return
+
+    let project: AetherProject | null = null
+    if (workspaceRootPath) {
+      project = await readProjectConfig(workspaceRootPath)
+      if (!project) {
+        const type = await detectProjectType(workspaceRootPath).catch(() => 'generic' as const)
+        project = createDefaultProject(activeWorkspaceId ?? 'workspace', type)
+        await writeProjectConfig(workspaceRootPath, project).catch(() => {})
+      }
+    } else if (workspaceHandle) {
+      project = await readProjectConfigFsa(workspaceHandle)
+      if (!project) {
+        project = createDefaultProject(activeWorkspaceId ?? 'workspace', 'generic')
+        await writeProjectConfigFsa(workspaceHandle, project).catch(() => {})
+      }
+    }
+
+    if (project) set({ projectSettings: project })
+  },
 
   setRemotePickerOpen: (open) => set({ remotePickerOpen: open }),
   setWslFolderPromptOpen: (open) => set({ wslFolderPromptOpen: open }),
@@ -996,6 +1083,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         worktreeChanges: {},
         syntaxTrees: {},
         symbolsByFile: {},
+        diagnosticsByFile: {},
         indexingError: null,
         workspaceEnvironment,
         workspaceEnvironmentStatus: 'ready',
@@ -1036,6 +1124,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       worktreeChanges: {},
       syntaxTrees: {},
       symbolsByFile: {},
+      diagnosticsByFile: {},
       terminalPanelOpen: false,
       remotePickerOpen: false,
       wslFolderPromptOpen: false,
@@ -1046,6 +1135,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       lspMode: resolved.lspMode,
       externalLspEndpoint: resolved.externalLspEndpoint,
       resolvedEnvironment: resolved,
+      projectSettings: null,
     })
   },
 }))

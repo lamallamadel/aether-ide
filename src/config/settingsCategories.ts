@@ -1,4 +1,5 @@
 export type SettingsCategory =
+  | 'project'
   | 'theme'
   | 'editor'
   | 'languages'
@@ -19,6 +20,7 @@ export const SETTINGS_CATEGORY_STORAGE_KEY = 'aether:settingsCategory'
 export const DEFAULT_SETTINGS_CATEGORY: SettingsCategory = 'editor'
 
 export const SETTINGS_CATEGORIES: SettingsCategoryMeta[] = [
+  { id: 'project', label: 'Project', keywords: ['project', 'sdk', 'aether', 'compiler', 'toolchain', 'aethercc', 'runtime'] },
   { id: 'theme', label: 'Theme', keywords: ['theme', 'appearance', 'accent', 'color'] },
   { id: 'editor', label: 'Editor', keywords: ['editor', 'font', 'minimap', 'wrap'] },
   { id: 'languages', label: 'Languages', keywords: ['language', 'aether', 'yaml', 'extensions'] },

@@ -3,6 +3,7 @@ import type { FileNode } from '../../domain/fileNode'
 const EXCLUDED_DIRS = new Set([
   'node_modules',
   '.git',
+  '.aetheride',
   '.aether',
   'dist',
   'build',
@@ -18,10 +19,12 @@ const MAX_DEPTH = 10
 
 function getLanguageFromExtension(name: string): string | undefined {
   const lower = name.toLowerCase()
+  if (lower.endsWith('.aether')) return 'aether'
   if (lower.endsWith('.tsx')) return 'typescript'
   if (lower.endsWith('.ts') || lower.endsWith('.mts') || lower.endsWith('.cts')) return 'typescript'
   if (lower.endsWith('.jsx') || lower.endsWith('.js') || lower.endsWith('.mjs') || lower.endsWith('.cjs')) return 'javascript'
   if (lower.endsWith('.json')) return 'json'
+  if (lower.endsWith('.yaml') || lower.endsWith('.yml')) return 'yaml'
   if (lower.endsWith('.md') || lower.endsWith('.mdx')) return 'markdown'
   if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'html'
   if (lower.endsWith('.css')) return 'css'

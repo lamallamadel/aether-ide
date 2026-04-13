@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, FileText, Code2, Braces, Box, Image as ImageIcon, ListTree } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileText, Code2, Braces, Box, Image as ImageIcon, ListTree, Sparkles } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import type { FileNode, FileType } from '../domain/fileNode'
 import { useEditorStore } from '../state/editorStore'
@@ -14,6 +14,9 @@ function FileIcon({ name, type, isActive }: { name: string; type: FileType; isAc
   }
 
   const lower = name.toLowerCase()
+  if (lower.endsWith('.aether')) {
+      return <Sparkles size={16} color={iconColor ?? 'rgb(192 132 252)'} strokeWidth={1.5} />
+  }
   if (lower.endsWith('.tsx') || lower.endsWith('.ts')) {
       return <Code2 size={16} color={iconColor ?? 'rgb(34 211 238)'} strokeWidth={1.5} />
   }

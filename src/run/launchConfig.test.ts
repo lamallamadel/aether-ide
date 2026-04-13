@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseLaunchJson, serializeLaunchJson, makeNpmConfig, makeShellConfig } from './launchConfig'
+import { parseLaunchJson, serializeLaunchJson, makeNpmConfig, makeShellConfig, makeAetherConfig, makeCmakeConfig, makePythonConfig } from './launchConfig'
 
 describe('launchConfig', () => {
   describe('parseLaunchJson', () => {
@@ -67,6 +67,71 @@ describe('launchConfig', () => {
       expect(cfg.type).toBe('shell')
       expect(cfg.command).toBe('echo hello')
       expect(cfg.name).toBe('Echo')
+    })
+  })
+
+  describe('makeAetherConfig', () => {
+    it('crée une configuration aether valide', () => {
+      const cfg = makeAetherConfig('main.aether', '/proj')
+      expect(cfg.type).toBe('aether')
+      expect(cfg.aetherFile).toBe('main.aether')
+      expect(cfg.name).toBe('Aether: main')
+      expect(cfg.pinned).toBe(true)
+      expect(cfg.cwd).toBe('/proj')
+    })
+
+    it('extrait le nom sans extension', () => {
+      const cfg = makeAetherConfig('examples/agents/rag_agent/main.aether')
+      expect(cfg.name).toBe('Aether: main')
+    })
+  })
+
+  describe('makeCmakeConfig', () => {
+    it('crée une configuration cmake avec defaults', () => {
+      const cfg = makeCmakeConfig()
+      expect(cfg.type).toBe('cmake')
+      expect(cfg.cmakeBuildDir).toBe('build')
+      expect(cfg.name).toBe('CMake: all')
+    })
+
+    it('accepte un target et build dir', () => {
+      const cfg = makeCmakeConfig('aether-compile', 'out', '/proj', 'Build Compiler')
+      expect(cfg.cmakeTarget).toBe('aether-compile')
+      expect(cfg.cmakeBuildDir).toBe('out')
+      expect(cfg.name).toBe('Build Compiler')
+      expect(cfg.cwd).toBe('/proj')
+    })
+  })
+
+  describe('makePythonConfig', () => {
+    it('crée une configuration python valide', () => {
+      const cfg = makePythonConfig('main.py', '/proj')
+      expect(cfg.type).toBe('python')
+      expect(cfg.pythonModule).toBe('main.py')
+      expect(cfg.name).toBe('Python: main.py')
+    })
+
+    it('accepte un nom personnalisé', () => {
+      const cfg = makePythonConfig('-m uvicorn app:main', '/proj', 'Uvicorn Server')
+      expect(cfg.name).toBe('Uvicorn Server')
+    })
+  })
+
+  describe('parseLaunchJson with new types', () => {
+    it('parse les types aether/cmake/python', () => {
+      const json = JSON.stringify({
+        version: 1,
+        configurations: [
+          { id: 'a1', name: 'Aether Main', type: 'aether', aetherFile: 'main.aether' },
+          { id: 'c1', name: 'Build Core', type: 'cmake', cmakeTarget: 'all', cmakeBuildDir: 'build' },
+          { id: 'p1', name: 'Infer', type: 'python', pythonModule: '-m aether_infer' },
+        ],
+      })
+      const result = parseLaunchJson(json)
+      expect(result).toHaveLength(3)
+      expect(result[0].type).toBe('aether')
+      expect(result[1].type).toBe('cmake')
+      expect(result[2].type).toBe('python')
     })
   })
 })

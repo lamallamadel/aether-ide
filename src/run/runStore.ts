@@ -116,16 +116,14 @@ export const useRunStore = create<RunState>((set, get) => ({
 
   addConfig: (config) => {
     set((s) => ({ configurations: [...s.configurations, config] }))
-    const st = get()
-    void st.saveConfigsToWorkspace(null, null)
+    void saveRunConfigsNow()
   },
 
   updateConfig: (id, patch) => {
     set((s) => ({
       configurations: s.configurations.map((c) => (c.id === id ? { ...c, ...patch } : c)),
     }))
-    const st = get()
-    void st.saveConfigsToWorkspace(null, null)
+    void saveRunConfigsNow()
   },
 
   removeConfig: (id) => {
@@ -133,8 +131,7 @@ export const useRunStore = create<RunState>((set, get) => ({
       configurations: s.configurations.filter((c) => c.id !== id),
       selectedConfigId: s.selectedConfigId === id ? null : s.selectedConfigId,
     }))
-    const st = get()
-    void st.saveConfigsToWorkspace(null, null)
+    void saveRunConfigsNow()
   },
 
   setSelectedConfigId: (id) => set({ selectedConfigId: id }),

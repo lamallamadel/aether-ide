@@ -3,7 +3,10 @@ import { readFileContent, writeFileContent } from '../services/fileSystem/fileSy
 import { nativeReadTextRelative, nativeWriteFileRelative } from '../services/fileSystem/electronNativeWorkspace'
 
 /** Répertoire des métadonnées projet (à la racine du workspace ouvert). */
-export const AETHER_PROJECT_DIR = '.aether'
+export const AETHER_PROJECT_DIR = '.aetheride'
+
+/** Legacy directory for backward compatibility. */
+const LEGACY_PROJECT_DIR = '.aether'
 
 /** Fichier JSON des overrides d’environnement workspace. */
 export const WORKSPACE_PROJECT_CONFIG_FILE = 'workspace.json'
@@ -59,19 +62,21 @@ export function serializeWorkspaceProjectConfig(overrides: WorkspaceEnvironment[
 }
 
 /**
- * Lit `.aether/workspace.json` à la racine du handle. Retourne `{}` si absent ou illisible.
+ * Lit `.aetheride/workspace.json` (or legacy `.aether/workspace.json`) at the root handle.
  */
 export async function readWorkspaceOverridesFromRoot(
   rootHandle: FileSystemDirectoryHandle
 ): Promise<WorkspaceEnvironment['overrides']> {
-  try {
-    const dir = await rootHandle.getDirectoryHandle(AETHER_PROJECT_DIR)
-    const fileHandle = await dir.getFileHandle(WORKSPACE_PROJECT_CONFIG_FILE)
-    const text = await readFileContent(fileHandle)
-    return parseWorkspaceProjectConfigJson(text) ?? {}
-  } catch {
-    return {}
+  for (const dirName of [AETHER_PROJECT_DIR, LEGACY_PROJECT_DIR]) {
+    try {
+      const dir = await rootHandle.getDirectoryHandle(dirName)
+      const fileHandle = await dir.getFileHandle(WORKSPACE_PROJECT_CONFIG_FILE)
+      const text = await readFileContent(fileHandle)
+      const result = parseWorkspaceProjectConfigJson(text)
+      if (result) return result
+    } catch { /* try next */ }
   }
+  return {}
 }
 
 /**
@@ -87,14 +92,21 @@ export async function writeWorkspaceProjectConfig(
 }
 
 const nativeConfigRelativePath = `${AETHER_PROJECT_DIR}/${WORKSPACE_PROJECT_CONFIG_FILE}`
+const legacyNativeConfigRelativePath = `${LEGACY_PROJECT_DIR}/${WORKSPACE_PROJECT_CONFIG_FILE}`
 
-/** Lit `.aether/workspace.json` via IPC (chemin racine workspace absolu). */
+/** Reads `.aetheride/workspace.json` (or legacy `.aether/workspace.json`) via IPC. */
 export async function readWorkspaceOverridesFromNativeRoot(
   rootPath: string
 ): Promise<WorkspaceEnvironment['overrides']> {
-  const text = await nativeReadTextRelative(rootPath, nativeConfigRelativePath)
-  if (text === null) return {}
-  return parseWorkspaceProjectConfigJson(text) ?? {}
+  for (const relPath of [nativeConfigRelativePath, legacyNativeConfigRelativePath]) {
+    try {
+      const text = await nativeReadTextRelative(rootPath, relPath)
+      if (text === null) continue
+      const result = parseWorkspaceProjectConfigJson(text)
+      if (result) return result
+    } catch { /* try next */ }
+  }
+  return {}
 }
 
 export async function writeWorkspaceProjectConfigNative(

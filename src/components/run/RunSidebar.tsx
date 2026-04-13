@@ -1,14 +1,18 @@
 /**
  * Sidebar panel for Run/Debug management.
- * Shows configurations, active instances, and auto-detection of npm scripts.
+ * Shows configurations, active instances, and auto-detection for the Aether ecosystem.
  */
 import { useState, useEffect } from 'react'
-import { Plus, RefreshCw, ChevronDown, ChevronRight, Square } from 'lucide-react'
+import { Plus, RefreshCw, ChevronDown, ChevronRight, Square, Sparkles, Wrench, Terminal as TerminalIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useRunStore, generateConfigId } from '../../run/runStore'
 import { useEditorStore } from '../../state/editorStore'
 import { stopInstance } from '../../run/runEngine'
-import { detectNpmScripts, detectNpmScriptsFsa, makeNpmConfig } from '../../run/launchConfig'
+import {
+  detectNpmScriptsFsa,
+  detectAetherProjects,
+} from '../../run/launchConfig'
+import type { DetectedProject } from '../../run/launchConfig'
 import { RunConfigCard } from './RunConfigCard'
 import type { RunConfiguration } from '../../run/types'
 
@@ -40,6 +44,17 @@ function SectionHeader({
       )}
     </button>
   )
+}
+
+// ---------------------------------------------------------------------------
+// Detection badge color
+// ---------------------------------------------------------------------------
+
+const TYPE_BADGE: Record<string, { color: string; icon: typeof Sparkles }> = {
+  aether: { color: 'text-purple-400', icon: Sparkles },
+  cmake: { color: 'text-cyan-400', icon: Wrench },
+  python: { color: 'text-yellow-400', icon: TerminalIcon },
+  npm: { color: 'text-green-400', icon: TerminalIcon },
 }
 
 // ---------------------------------------------------------------------------
@@ -76,39 +91,47 @@ export function RunSidebar() {
   )
 
   const [configsOpen, setConfigsOpen] = useState(true)
-  const [instancesOpen, setInstancesOpen] = useState(true)
+  const [runningOpen, setRunningOpen] = useState(true)
+  const [recentOpen, setRecentOpen] = useState(true)
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
-  const [suggestions, setSuggestions] = useState<string[]>([])
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
+  const [detectedProjects, setDetectedProjects] = useState<DetectedProject[]>([])
+  const [loadingDetect, setLoadingDetect] = useState(false)
 
-  // Load configurations when workspace changes
   useEffect(() => {
     void loadConfigsFromWorkspace(workspaceRootPath, workspaceHandle as FileSystemDirectoryHandle | null)
   }, [workspaceRootPath, workspaceHandle, loadConfigsFromWorkspace])
 
-  // Load npm script suggestions
-  const loadSuggestions = async () => {
-    setLoadingSuggestions(true)
+  const runDetection = async () => {
+    setLoadingDetect(true)
     try {
-      let scripts: { script: string }[] = []
+      let projects: DetectedProject[] = []
       if (workspaceRootPath) {
-        scripts = await detectNpmScripts(workspaceRootPath)
+        projects = await detectAetherProjects(workspaceRootPath)
       } else if (workspaceHandle) {
-        scripts = await detectNpmScriptsFsa(workspaceHandle as FileSystemDirectoryHandle)
+        const scripts = await detectNpmScriptsFsa(workspaceHandle as FileSystemDirectoryHandle)
+        projects = scripts.map((s) => ({
+          type: 'npm' as const,
+          label: `npm run ${s.script}`,
+          config: { type: 'npm' as const, npmScript: s.script, name: `npm run ${s.script}` },
+        }))
       }
-      setSuggestions(scripts.map((s) => s.script))
+      setDetectedProjects(projects)
     } catch {
-      setSuggestions([])
+      setDetectedProjects([])
     } finally {
-      setLoadingSuggestions(false)
+      setLoadingDetect(false)
     }
   }
 
-  const handleAddSuggestion = (script: string) => {
-    const newConfig = makeNpmConfig(script, workspaceRootPath ?? undefined)
-    addConfig(newConfig)
-    setSelectedConfigId(newConfig.id)
-    setSuggestionsOpen(false)
+  const handleAddDetected = (project: DetectedProject) => {
+    const cfg: RunConfiguration = {
+      id: generateConfigId(),
+      name: project.config.name ?? project.label,
+      type: project.config.type ?? project.type,
+      ...project.config,
+    }
+    addConfig(cfg)
+    setSelectedConfigId(cfg.id)
   }
 
   const handleAddNew = () => {
@@ -140,15 +163,15 @@ export function RunSidebar() {
     <div className="flex flex-col h-full text-xs select-none">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 shrink-0">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Run</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Run / Debug</span>
         <div className="flex items-center gap-1">
           <button
             type="button"
-            title="Auto-detect npm scripts"
+            title="Auto-detect project configurations"
             className="p-1 text-gray-500 hover:text-white transition-colors"
-            onClick={() => { setSuggestionsOpen((v) => !v); if (!suggestionsOpen) void loadSuggestions() }}
+            onClick={() => { setSuggestionsOpen((v) => !v); if (!suggestionsOpen) void runDetection() }}
           >
-            <RefreshCw size={12} className={loadingSuggestions ? 'animate-spin' : ''} />
+            <RefreshCw size={12} className={loadingDetect ? 'animate-spin' : ''} />
           </button>
           <button
             type="button"
@@ -163,20 +186,30 @@ export function RunSidebar() {
 
       <div className="flex-1 overflow-y-auto">
         {/* Auto-detected suggestions */}
-        {suggestionsOpen && suggestions.length > 0 && (
+        {suggestionsOpen && detectedProjects.length > 0 && (
           <div className="mx-2 my-2 p-2 bg-white/5 rounded border border-white/10">
-            <div className="text-[10px] text-gray-500 mb-1 uppercase tracking-wider">Detected npm scripts</div>
-            {suggestions.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => handleAddSuggestion(s)}
-                className="flex items-center gap-1.5 w-full px-2 py-1 hover:bg-white/10 rounded text-[11px] text-gray-300"
-              >
-                <Plus size={10} className="text-green-400" />
-                npm run {s}
-              </button>
-            ))}
+            <div className="text-[10px] text-gray-500 mb-1 uppercase tracking-wider">Detected configurations</div>
+            {detectedProjects.map((p, i) => {
+              const badge = TYPE_BADGE[p.type] ?? TYPE_BADGE.npm
+              const BadgeIcon = badge.icon
+              return (
+                <button
+                  key={`${p.type}-${i}`}
+                  type="button"
+                  onClick={() => handleAddDetected(p)}
+                  className="flex items-center gap-1.5 w-full px-2 py-1.5 hover:bg-white/10 rounded text-[11px] text-gray-300"
+                >
+                  <Plus size={10} className={badge.color} />
+                  <BadgeIcon size={10} className={badge.color} />
+                  <span className="truncate">{p.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+        {suggestionsOpen && detectedProjects.length === 0 && !loadingDetect && (
+          <div className="mx-2 my-2 p-2 bg-white/5 rounded border border-white/10 text-[10px] text-gray-600">
+            No project files detected (CMakeLists.txt, Makefile, pyproject.toml, package.json).
           </div>
         )}
 
@@ -203,7 +236,7 @@ export function RunSidebar() {
                 <button
                   type="button"
                   className="text-primary-400 hover:underline"
-                  onClick={() => { setSuggestionsOpen(true); void loadSuggestions() }}
+                  onClick={() => { setSuggestionsOpen(true); void runDetection() }}
                 >
                   auto-detect
                 </button>
@@ -228,11 +261,11 @@ export function RunSidebar() {
           <>
             <SectionHeader
               title="Running"
-              open={instancesOpen}
-              onToggle={() => setInstancesOpen((v) => !v)}
+              open={runningOpen}
+              onToggle={() => setRunningOpen((v) => !v)}
               count={activeInstances.length}
             />
-            {instancesOpen && activeInstances.map((inst) => (
+            {runningOpen && activeInstances.map((inst) => (
               <div
                 key={inst.id}
                 className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 cursor-pointer"
@@ -262,11 +295,11 @@ export function RunSidebar() {
             <div className="mt-1">
               <SectionHeader
                 title="Recent"
-                open={instancesOpen}
-                onToggle={() => setInstancesOpen((v) => !v)}
+                open={recentOpen}
+                onToggle={() => setRecentOpen((v) => !v)}
               />
             </div>
-            {instancesOpen && recentInstances.map((inst) => (
+            {recentOpen && recentInstances.map((inst) => (
               <div
                 key={inst.id}
                 className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 cursor-pointer"

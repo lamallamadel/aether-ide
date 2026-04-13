@@ -97,6 +97,79 @@ function ShellFields({
   )
 }
 
+function AetherFields({
+  config,
+  onChange,
+}: {
+  config: RunConfiguration
+  onChange: (patch: Partial<RunConfiguration>) => void
+}) {
+  return (
+    <>
+      <Field label="Aether source file" hint="Path to .aether file relative to workspace root">
+        <input
+          className={inputCls}
+          value={config.aetherFile ?? ''}
+          onChange={(e) => onChange({ aetherFile: e.target.value })}
+          placeholder="main.aether"
+        />
+      </Field>
+      <div className="px-3 py-2 bg-white/3 rounded border border-white/5 text-[10px] text-gray-600 leading-relaxed">
+        Compiles via <span className="text-purple-400 font-mono">aethercc</span> in WSL, links with
+        <span className="text-cyan-400 font-mono"> libaether-rt</span>, then executes the binary.
+      </div>
+    </>
+  )
+}
+
+function CmakeFields({
+  config,
+  onChange,
+}: {
+  config: RunConfiguration
+  onChange: (patch: Partial<RunConfiguration>) => void
+}) {
+  return (
+    <>
+      <Field label="Build directory" hint="Path to cmake build directory (default: build)">
+        <input
+          className={inputCls}
+          value={config.cmakeBuildDir ?? ''}
+          onChange={(e) => onChange({ cmakeBuildDir: e.target.value || undefined })}
+          placeholder="build"
+        />
+      </Field>
+      <Field label="Target" hint="CMake target to build (leave blank for all)">
+        <input
+          className={inputCls}
+          value={config.cmakeTarget ?? ''}
+          onChange={(e) => onChange({ cmakeTarget: e.target.value || undefined })}
+          placeholder="all"
+        />
+      </Field>
+    </>
+  )
+}
+
+function PythonFields({
+  config,
+  onChange,
+}: {
+  config: RunConfiguration
+  onChange: (patch: Partial<RunConfiguration>) => void
+}) {
+  return (
+    <Field label="Module or script" hint="Python module (-m) or script path (e.g. main.py, -m uvicorn app:main)">
+      <input
+        className={inputCls}
+        value={config.pythonModule ?? ''}
+        onChange={(e) => onChange({ pythonModule: e.target.value })}
+        placeholder="main.py"
+      />
+    </Field>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Env editor
 // ---------------------------------------------------------------------------
@@ -206,6 +279,13 @@ export function RunConfigEditor({ configId }: Props) {
   const [dirty, setDirty] = useState(false)
   const [saved_, setSaved_] = useState(false)
 
+  // Reset draft when switching to a different config
+  useEffect(() => {
+    setDraft(saved)
+    setDirty(false)
+    setSaved_(false)
+  }, [configId])
+
   // Sync when the store changes externally (e.g. initial load)
   useEffect(() => {
     if (!dirty) setDraft(saved)
@@ -246,6 +326,9 @@ export function RunConfigEditor({ configId }: Props) {
   }
 
   const TYPE_OPTIONS: { value: RunConfigType; label: string }[] = [
+    { value: 'aether', label: 'Aether (.aether)' },
+    { value: 'cmake', label: 'CMake build' },
+    { value: 'python', label: 'Python' },
     { value: 'npm', label: 'npm run' },
     { value: 'node', label: 'Node.js' },
     { value: 'shell', label: 'Shell command' },
@@ -322,6 +405,9 @@ export function RunConfigEditor({ configId }: Props) {
         </Field>
 
         {/* Type-specific fields */}
+        {draft.type === 'aether' && <AetherFields config={draft} onChange={patch} />}
+        {draft.type === 'cmake' && <CmakeFields config={draft} onChange={patch} />}
+        {draft.type === 'python' && <PythonFields config={draft} onChange={patch} />}
         {draft.type === 'npm' && <NpmFields config={draft} onChange={patch} />}
         {draft.type === 'node' && <NodeFields config={draft} onChange={patch} />}
         {(draft.type === 'shell' || draft.type === 'wsl') && <ShellFields config={draft} onChange={patch} />}

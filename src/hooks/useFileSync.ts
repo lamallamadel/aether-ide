@@ -5,12 +5,15 @@ import { parseFileContent, languageIdForFile } from '../services/syntax/syntaxCl
 import { ingestFile } from '../services/graphrag/graphrag'
 
 /**
- * Hook that syncs file content to syntax parsing and GraphRAG ingestion.
- * Extracts parse+ingest logic from EditorArea for cleaner separation of concerns.
+ * Hook that syncs file content to syntax parsing, diagnostics, and GraphRAG ingestion.
  */
 export function useFileSync() {
-  const { setFileContent, setSyntaxForFile } = useEditorStore(
-    useShallow((s) => ({ setFileContent: s.setFileContent, setSyntaxForFile: s.setSyntaxForFile }))
+  const { setFileContent, setSyntaxForFile, setDiagnosticsForFile } = useEditorStore(
+    useShallow((s) => ({
+      setFileContent: s.setFileContent,
+      setSyntaxForFile: s.setSyntaxForFile,
+      setDiagnosticsForFile: s.setDiagnosticsForFile,
+    }))
   )
 
   const syncFile = useCallback(
@@ -19,13 +22,20 @@ export function useFileSync() {
       const lang = languageIdForFile(fileId)
       if (!lang) return
 
-      parseFileContent(lang, content).then((res) => {
-        if (!res.tree) return
-        setSyntaxForFile(fileId, res.tree, res.symbols)
-        ingestFile(fileId, content, res.symbols)
-      })
+      parseFileContent(lang, content)
+        .then((res) => {
+          if (res.tree) {
+            setSyntaxForFile(fileId, res.tree, res.symbols)
+          }
+          setDiagnosticsForFile(fileId, res.diagnostics)
+          ingestFile(fileId, content, res.symbols)
+        })
+        .catch((err) => {
+          console.warn('File sync failed for', fileId, err)
+          setDiagnosticsForFile(fileId, [])
+        })
     },
-    [setFileContent, setSyntaxForFile]
+    [setFileContent, setSyntaxForFile, setDiagnosticsForFile]
   )
 
   return { syncFile }
