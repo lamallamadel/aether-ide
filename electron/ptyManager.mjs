@@ -21,13 +21,14 @@ function defaultShell() {
 export function registerPtyHandlers(getWindow) {
   ipcMain.handle('aether:pty-create', async (_event, options) => {
     const pty = await import('@lydell/node-pty')
+    const ptyApi = pty?.default ?? pty
     const id = `pty-${++counter}`
     const shell = (typeof options?.shell === 'string' && options.shell) ? options.shell : defaultShell()
     const args = Array.isArray(options?.args) ? options.args.filter((a) => typeof a === 'string') : []
     const cwd = (typeof options?.cwd === 'string' && options.cwd) ? options.cwd : os.homedir()
     const env = { ...process.env, ...(options?.env && typeof options.env === 'object' ? options.env : {}), TERM: 'xterm-256color' }
 
-    const proc = pty.spawn(shell, args, {
+    const proc = ptyApi.spawn(shell, args, {
       name: 'xterm-256color',
       cols: 80,
       rows: 24,

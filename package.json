@@ -15,13 +15,15 @@
     "desktop:build:win": "npm run build:electron && electron-builder --win --publish never",
     "desktop:build:mac": "npm run build:electron && electron-builder --mac --publish never",
     "desktop:build:linux": "npm run build:electron && electron-builder --linux --publish never",
+    "desktop:build:linux:appimage": "npm run build:electron && electron-builder --linux AppImage --publish never",
     "desktop:build:all": "npm run build:electron && electron-builder --win --mac --linux --publish never",
     "lint": "eslint .",
     "docs:lint": "markdownlint \"README.md\" \"settings.md\" \"CONTRIBUTING.md\" \"docs/**/*.md\" \"DOC_REVIEW_2026-03-31.md\" --ignore \"docs/archive/**\"",
     "docs:check": "npm run docs:lint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "postinstall": "node scripts/ensure-node-pty-platforms.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.1",
@@ -120,13 +122,15 @@
       ]
     },
     "linux": {
+      "category": "Development",
+      "maintainer": "Aether",
       "target": [
         {
-          "target": "AppImage",
+          "target": "tar.gz",
           "arch": ["x64", "arm64"]
         },
         {
-          "target": "deb",
+          "target": "dir",
           "arch": ["x64", "arm64"]
         }
       ]
