@@ -5,6 +5,7 @@
  * Defines the project identity, type, SDK paths, and modules.
  */
 import { nativeReadTextRelative, nativeWriteFileRelative } from '../services/fileSystem/electronNativeWorkspace'
+import type { FileNode } from '../domain/fileNode'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -13,6 +14,11 @@ import { nativeReadTextRelative, nativeWriteFileRelative } from '../services/fil
 export const AETHERIDE_DIR = '.aetheride'
 export const PROJECT_CONFIG_FILE = 'project.json'
 const PROJECT_CONFIG_PATH = `${AETHERIDE_DIR}/${PROJECT_CONFIG_FILE}`
+
+/** Manifest for the wind (aether-wind) build tool — cargo equivalent for Aether. */
+export const WIND_MANIFEST_FILE = 'Wind.toml'
+
+export const DEFAULT_WIND_PATH = 'wind'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -47,8 +53,12 @@ export interface AetherProject {
   sdk: AetherSdk
   /** Module paths (future: multi-module projects) */
   modules: string[]
-  /** When true, run `aether-compile --check` on save and feed diagnostics */
+  /** When true, refresh embedded LSP diagnostics when saving .aether files (not the external compiler). */
   compileOnSave?: boolean
+  /** Path to the `wind` CLI in WSL (default: on PATH as `wind`). */
+  windPath?: string
+  /** If set, relative path to Wind.toml passed as `wind --manifest <path>` (when not at workspace root). */
+  windManifestPath?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +79,7 @@ export function createDefaultProject(name: string, type: ProjectType = 'generic'
     type,
     sdk: { ...DEFAULT_SDK },
     modules: [],
+    windPath: DEFAULT_WIND_PATH,
   }
 }
 
@@ -103,6 +114,11 @@ export async function detectProjectType(workspaceRootPath: string): Promise<Proj
   // Check for Aether runtime (CMake + C source with aether-rt markers)
   if (await hasContent('CMakeLists.txt', 'aether-rt') || await hasContent('CMakeLists.txt', 'blocklace')) {
     return 'aether-runtime'
+  }
+
+  // Wind / Aether package (cargo-style manifest)
+  if (await exists(WIND_MANIFEST_FILE)) {
+    return 'aether-app'
   }
 
   // Check for Aether app (Makefile with aethercc, or .aether files)
@@ -162,7 +178,10 @@ export function parseProjectJson(text: string): AetherProject | null {
 
     const compileOnSave = typeof rec.compileOnSave === 'boolean' ? rec.compileOnSave : undefined
 
-    return { version: 1, name, type, sdk, modules, compileOnSave }
+    const windPath = typeof rec.windPath === 'string' ? rec.windPath : undefined
+    const windManifestPath = typeof rec.windManifestPath === 'string' ? rec.windManifestPath : undefined
+
+    return { version: 1, name, type, sdk, modules, compileOnSave, windPath, windManifestPath }
   } catch {
     return null
   }
@@ -215,4 +234,20 @@ export async function writeProjectConfigFsa(
   const writable = await fileHandle.createWritable()
   await writable.write(serializeProjectJson(project))
   await writable.close()
+}
+
+// ---------------------------------------------------------------------------
+// Wind.toml presence (file tree)
+// ---------------------------------------------------------------------------
+
+/** True if the loaded workspace tree contains a `Wind.toml` file. */
+export function treeHasWindToml(files: FileNode[]): boolean {
+  const visit = (n: FileNode): boolean => {
+    if (n.type === 'file' && (n.name === WIND_MANIFEST_FILE || n.id === WIND_MANIFEST_FILE || n.id.endsWith(`/${WIND_MANIFEST_FILE}`))) {
+      return true
+    }
+    if (n.children?.length) return n.children.some(visit)
+    return false
+  }
+  return files.some(visit)
 }

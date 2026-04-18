@@ -9,7 +9,13 @@ export const aetherNativeManifest: ExtensionManifest = {
   activationEvents: ['onStartup', 'onLanguage:aether'],
   permissions: ['workspace.read', 'workspace.search'],
   contributes: {
-    commands: [{ id: 'aether.openMissionControl', title: 'Aether: Open Mission Control' }],
+    commands: [
+      { id: 'aether.openMissionControl', title: 'Aether: Open Mission Control' },
+      { id: 'wind.build', title: 'Wind: build' },
+      { id: 'wind.run', title: 'Wind: run' },
+      { id: 'wind.check', title: 'Wind: check' },
+      { id: 'wind.test', title: 'Wind: test' },
+    ],
     languages: [{ id: 'aether', extensions: ['.aether'] }],
   },
 }

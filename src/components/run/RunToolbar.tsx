@@ -6,7 +6,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Play, Square, RotateCcw, ChevronDown, Settings2, Sparkles } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useRunStore } from '../../run/runStore'
-import { launchSelected, stopInstance, restartInstance, launchActiveFile } from '../../run/runEngine'
+import { launchSelected, stopInstance, restartInstance, launchActiveFile, launchWindQuick } from '../../run/runEngine'
 import { useEditorStore } from '../../state/editorStore'
 
 export function RunToolbar() {
@@ -26,8 +26,12 @@ export function RunToolbar() {
     }))
   )
 
-  const { openRunConfigEditor, activeFileId } = useEditorStore(
-    useShallow((s) => ({ openRunConfigEditor: s.openRunConfigEditor, activeFileId: s.activeFileId }))
+  const { openRunConfigEditor, activeFileId, workspaceHasWindToml } = useEditorStore(
+    useShallow((s) => ({
+      openRunConfigEditor: s.openRunConfigEditor,
+      activeFileId: s.activeFileId,
+      workspaceHasWindToml: s.workspaceHasWindToml,
+    }))
   )
 
   const isAetherFile = activeFileId?.endsWith('.aether') ?? false
@@ -77,12 +81,24 @@ export function RunToolbar() {
     }
   }
 
-  if (configurations.length === 0 && !isAetherFile) return null
+  if (configurations.length === 0 && !isAetherFile && !workspaceHasWindToml) return null
 
   return (
     <div className="flex items-center gap-1 px-2 shrink-0">
-      {/* Run Active .aether File */}
-      {isAetherFile && (
+      {/* wind run (Wind.toml workspace) */}
+      {workspaceHasWindToml && (
+        <button
+          type="button"
+          title="wind run"
+          onClick={() => void launchWindQuick('run').then(() => openBottomPanel())}
+          className="flex items-center gap-1 px-2 h-6 rounded text-[11px] text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 transition-colors"
+        >
+          <Sparkles size={10} />
+          <span className="truncate max-w-[72px]">Wind run</span>
+        </button>
+      )}
+      {/* Run Active .aether File (direct aethercc when no Wind.toml) */}
+      {isAetherFile && !workspaceHasWindToml && (
         <button
           type="button"
           title={`Run ${activeFileId}`}

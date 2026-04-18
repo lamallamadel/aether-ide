@@ -2,8 +2,9 @@
  * Run Engine — translates a RunConfiguration into PTY sessions,
  * manages instance lifecycle, and feeds output to runStore.
  */
-import type { RunConfiguration, RunInstance } from './types'
-import type { AetherSdk } from '../config/projectConfig'
+import type { RunConfiguration, RunInstance, WindSubcommand } from './types'
+import type { AetherProject } from '../config/projectConfig'
+import { DEFAULT_WIND_PATH } from '../config/projectConfig'
 import { useRunStore } from './runStore'
 
 let _instanceCounter = 0
@@ -42,9 +43,11 @@ interface ResolvedCommand {
   env?: Record<string, string>
 }
 
-function resolveCommand(config: RunConfiguration, workspaceRoot: string | null, sdk?: AetherSdk | null): ResolvedCommand {
+/** Exported for unit tests (wind / aether command resolution). */
+export function resolveCommand(config: RunConfiguration, workspaceRoot: string | null, project: AetherProject | null): ResolvedCommand {
   const cwd = config.cwd || workspaceRoot || undefined
   const env = config.env ?? {}
+  const sdk = project?.sdk ?? null
 
   switch (config.type) {
     case 'npm': {
@@ -82,6 +85,34 @@ function resolveCommand(config: RunConfiguration, workspaceRoot: string | null, 
         `./build/${baseName}${escapeArgs(config.args)}`,
       ].join(' && ')
       return { shell: 'wsl.exe', shellArgs: [], cmd: `mkdir -p build && ${compileAndRun}`, cwd, env }
+    }
+    case 'wind': {
+      const windExe = shellEscape((project?.windPath?.trim() || DEFAULT_WIND_PATH).trim() || DEFAULT_WIND_PATH)
+      const parts: string[] = [windExe]
+      if (config.windRelease) parts.push('--release')
+      if (config.windVerbose) parts.push('--verbose')
+      const manifest = (config.windManifest?.trim() || project?.windManifestPath?.trim()) ?? ''
+      if (manifest) {
+        parts.push('--manifest')
+        parts.push(shellEscape(manifest))
+      }
+      if (config.windBin?.trim()) {
+        parts.push('--bin')
+        parts.push(shellEscape(config.windBin.trim()))
+      }
+      if (config.windFilter?.trim() && config.windCommand === 'test') {
+        parts.push('--filter')
+        parts.push(shellEscape(config.windFilter.trim()))
+      }
+      const sub = config.windCommand ?? 'build'
+      parts.push(sub)
+      if (sub === 'run' && config.args?.length) {
+        parts.push('--')
+        for (const a of config.args) parts.push(shellEscape(a))
+      } else if (config.args?.length) {
+        for (const a of config.args) parts.push(shellEscape(a))
+      }
+      return { shell: 'wsl.exe', shellArgs: [], cmd: parts.join(' '), cwd, env }
     }
     case 'cmake': {
       const buildDir = shellEscape(config.cmakeBuildDir ?? 'build')
@@ -152,15 +183,15 @@ export async function launchConfig(
   try {
     // Read SDK from project settings for Aether configs
     const { useEditorStore } = await import('../state/editorStore')
-    const projectSdk = useEditorStore.getState().projectSettings?.sdk ?? null
-    const resolved = resolveCommand(config, workspaceRoot, projectSdk)
+    const projectSettings = useEditorStore.getState().projectSettings ?? null
+    const resolved = resolveCommand(config, workspaceRoot, projectSettings)
 
     // Determine shell and initial command to inject
     let shellExe: string | undefined = resolved.shell
     let shellArgs: string[] = resolved.shellArgs ?? []
 
     // For WSL and aether configs, attach the connected distro
-    if (config.type === 'wsl' || config.type === 'aether') {
+    if (config.type === 'wsl' || config.type === 'aether' || config.type === 'wind') {
       const conn = useEditorStore.getState().remoteConnection
       if (conn?.type === 'wsl' && conn.distro) {
         shellExe = 'wsl.exe'
@@ -275,8 +306,12 @@ export async function launchSelected(): Promise<string | null> {
  */
 export async function launchActiveFile(): Promise<string | null> {
   const { useEditorStore } = await import('../state/editorStore')
-  const { activeFileId, workspaceRootPath } = useEditorStore.getState()
+  const { activeFileId, workspaceRootPath, workspaceHasWindToml } = useEditorStore.getState()
   if (!activeFileId || !activeFileId.endsWith('.aether')) return null
+
+  if (workspaceHasWindToml) {
+    return launchWindQuick('run')
+  }
 
   const baseName = activeFileId.replace(/\.aether$/, '').split('/').pop() ?? 'main'
   const tempConfig: RunConfiguration = {
@@ -286,5 +321,18 @@ export async function launchActiveFile(): Promise<string | null> {
     aetherFile: activeFileId,
   }
 
+  return launchConfig(tempConfig, workspaceRootPath)
+}
+
+/** One-shot `wind <command>` using project wind settings (Wind.toml workspace). */
+export async function launchWindQuick(command: WindSubcommand): Promise<string | null> {
+  const { useEditorStore } = await import('../state/editorStore')
+  const { workspaceRootPath } = useEditorStore.getState()
+  const tempConfig: RunConfiguration = {
+    id: `temp-wind-${Date.now()}`,
+    name: `Wind: ${command}`,
+    type: 'wind',
+    windCommand: command,
+  }
   return launchConfig(tempConfig, workspaceRootPath)
 }

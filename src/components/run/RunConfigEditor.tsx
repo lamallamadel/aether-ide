@@ -8,7 +8,9 @@ import { useShallow } from 'zustand/react/shallow'
 import { useRunStore } from '../../run/runStore'
 import { launchConfig } from '../../run/runEngine'
 import { useEditorStore } from '../../state/editorStore'
-import type { RunConfiguration, RunConfigType } from '../../run/types'
+import type { RunConfiguration, RunConfigType, WindSubcommand } from '../../run/types'
+
+const WIND_COMMANDS: WindSubcommand[] = ['build', 'run', 'check', 'test', 'verify', 'doc', 'update']
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -117,6 +119,83 @@ function AetherFields({
       <div className="px-3 py-2 bg-white/3 rounded border border-white/5 text-[10px] text-gray-600 leading-relaxed">
         Compiles via <span className="text-purple-400 font-mono">aethercc</span> in WSL, links with
         <span className="text-cyan-400 font-mono"> libaether-rt</span>, then executes the binary.
+      </div>
+    </>
+  )
+}
+
+function WindFields({
+  config,
+  onChange,
+}: {
+  config: RunConfiguration
+  onChange: (patch: Partial<RunConfiguration>) => void
+}) {
+  return (
+    <>
+      <Field label="wind subcommand" hint="Same as cargo: build, run, check, test, …">
+        <select
+          className={inputCls}
+          value={config.windCommand ?? 'build'}
+          onChange={(e) => onChange({ windCommand: e.target.value as WindSubcommand })}
+        >
+          {WIND_COMMANDS.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <div className="flex flex-wrap gap-4">
+        <label className="flex items-center gap-2 text-[11px] text-gray-400 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={config.windRelease ?? false}
+            onChange={(e) => onChange({ windRelease: e.target.checked })}
+            className="accent-primary-500"
+          />
+          --release
+        </label>
+        <label className="flex items-center gap-2 text-[11px] text-gray-400 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={config.windVerbose ?? false}
+            onChange={(e) => onChange({ windVerbose: e.target.checked })}
+            className="accent-primary-500"
+          />
+          --verbose
+        </label>
+      </div>
+      <Field label="--bin" hint="[[bin]] target name (optional)">
+        <input
+          className={inputCls}
+          value={config.windBin ?? ''}
+          onChange={(e) => onChange({ windBin: e.target.value || undefined })}
+          placeholder="my_agent"
+        />
+      </Field>
+      <Field label="--filter" hint="For wind test: substring filter">
+        <input
+          className={inputCls}
+          value={config.windFilter ?? ''}
+          onChange={(e) => onChange({ windFilter: e.target.value || undefined })}
+          placeholder="smoke"
+        />
+      </Field>
+      <Field
+        label="--manifest"
+        hint="Relative Wind.toml if not using project default (overrides .aetheride/project.json windManifestPath)"
+      >
+        <input
+          className={inputCls}
+          value={config.windManifest ?? ''}
+          onChange={(e) => onChange({ windManifest: e.target.value || undefined })}
+          placeholder="Wind.toml"
+        />
+      </Field>
+      <div className="px-3 py-2 bg-white/3 rounded border border-white/5 text-[10px] text-gray-600 leading-relaxed">
+        Runs <span className="text-sky-400 font-mono">wind</span> in WSL (see Project settings for executable path). For{' '}
+        <span className="font-mono">run</span>, use Arguments as program args after <span className="font-mono">--</span>.
       </div>
     </>
   )
@@ -327,6 +406,7 @@ export function RunConfigEditor({ configId }: Props) {
 
   const TYPE_OPTIONS: { value: RunConfigType; label: string }[] = [
     { value: 'aether', label: 'Aether (.aether)' },
+    { value: 'wind', label: 'wind (Wind.toml)' },
     { value: 'cmake', label: 'CMake build' },
     { value: 'python', label: 'Python' },
     { value: 'npm', label: 'npm run' },
@@ -406,6 +486,7 @@ export function RunConfigEditor({ configId }: Props) {
 
         {/* Type-specific fields */}
         {draft.type === 'aether' && <AetherFields config={draft} onChange={patch} />}
+        {draft.type === 'wind' && <WindFields config={draft} onChange={patch} />}
         {draft.type === 'cmake' && <CmakeFields config={draft} onChange={patch} />}
         {draft.type === 'python' && <PythonFields config={draft} onChange={patch} />}
         {draft.type === 'npm' && <NpmFields config={draft} onChange={patch} />}
@@ -423,14 +504,23 @@ export function RunConfigEditor({ configId }: Props) {
         </Field>
 
         {/* Arguments */}
-        <Field label="Arguments" hint="Extra args appended after the command, space-separated">
+        <Field
+          label="Arguments"
+          hint={
+            draft.type === 'wind' && draft.windCommand === 'run'
+              ? 'Program arguments after wind run … -- (one token per word when split on spaces)'
+              : draft.type === 'wind'
+              ? 'Extra tokens after the wind subcommand'
+              : 'Extra args appended after the command, space-separated'
+          }
+        >
           <input
             className={inputCls}
             value={draft.args?.join(' ') ?? ''}
             onChange={(e) =>
-              patch({ args: e.target.value ? e.target.value.split(/\s+/) : undefined })
+              patch({ args: e.target.value.trim() ? e.target.value.trim().split(/\s+/) : undefined })
             }
-            placeholder="--flag value"
+            placeholder={draft.type === 'wind' && draft.windCommand === 'run' ? 'arg1 arg2' : '--flag value'}
           />
         </Field>
 

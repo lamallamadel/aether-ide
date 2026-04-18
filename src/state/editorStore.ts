@@ -18,7 +18,15 @@ import { nativeLoadWorkspace, nativeWriteFileRelative } from '../services/fileSy
 import type { WorkspaceProvider } from '../services/fileSystem/workspaceProvider'
 import type { RemoteConnectionStatus } from '../types/aether-desktop'
 import type { AetherProject, AetherSdk } from '../config/projectConfig'
-import { readProjectConfig, writeProjectConfig, readProjectConfigFsa, writeProjectConfigFsa, createDefaultProject, detectProjectType } from '../config/projectConfig'
+import {
+  readProjectConfig,
+  writeProjectConfig,
+  readProjectConfigFsa,
+  writeProjectConfigFsa,
+  createDefaultProject,
+  detectProjectType,
+  treeHasWindToml,
+} from '../config/projectConfig'
 
 let _connectionEpoch = 0
 
@@ -107,6 +115,9 @@ export interface EditorState {
 
   /** Aether project settings loaded from .aetheride/project.json (null if not initialized). */
   projectSettings: AetherProject | null
+
+  /** True when the workspace file tree contains `Wind.toml` (wind / aether-wind package). */
+  workspaceHasWindToml: boolean
 
   /** Active remote connection (null = local). */
   remoteConnection: RemoteConnection | null
@@ -416,6 +427,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   diagnosticsByFile: {},
 
   projectSettings: null,
+  workspaceHasWindToml: false,
 
   remoteConnection: null,
   activeProvider: null,
@@ -706,6 +718,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         externalLspEndpoint: resolved.externalLspEndpoint,
         resolvedEnvironment: resolved,
         projectSettings: null,
+        workspaceHasWindToml: treeHasWindToml(newFiles),
       })
       const project = await readProjectConfigFsa(handle).catch(() => null)
       if (project) set({ projectSettings: project })
@@ -755,6 +768,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         externalLspEndpoint: resolved.externalLspEndpoint,
         resolvedEnvironment: resolved,
         projectSettings: null,
+        workspaceHasWindToml: treeHasWindToml(newFiles),
       })
       const project = await readProjectConfig(rootPath).catch(() => null)
       if (project) set({ projectSettings: project })
@@ -1092,7 +1106,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         externalLspEndpoint: resolved.externalLspEndpoint,
         resolvedEnvironment: resolved,
         remoteConnection: { ...conn, linuxRootPath: linuxPath },
+        workspaceHasWindToml: treeHasWindToml(newFiles),
+        projectSettings: null,
       })
+      const project = await readProjectConfig(rootPath).catch(() => null)
+      if (project) set({ projectSettings: project })
     } catch (err) {
       if (_connectionEpoch !== epoch) return
       console.error('openWslFolder failed', err)
@@ -1136,6 +1154,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       externalLspEndpoint: resolved.externalLspEndpoint,
       resolvedEnvironment: resolved,
       projectSettings: null,
+      workspaceHasWindToml: false,
     })
   },
 }))

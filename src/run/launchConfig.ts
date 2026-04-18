@@ -2,7 +2,8 @@
  * Reads and writes `.aether/launch.json` from/to the active workspace.
  * Also provides auto-detection of npm scripts from package.json.
  */
-import type { RunConfiguration, LaunchFileV1 } from './types'
+import type { RunConfiguration, LaunchFileV1, WindSubcommand } from './types'
+import { WIND_MANIFEST_FILE } from '../config/projectConfig'
 import { nativeReadTextRelative, nativeWriteFileRelative } from '../services/fileSystem/electronNativeWorkspace'
 
 export const AETHER_PROJECT_DIR = '.aetheride'
@@ -204,18 +205,54 @@ export function makePythonConfig(module: string, cwd?: string, name?: string): R
   }
 }
 
+export function makeWindConfig(
+  command: WindSubcommand,
+  name?: string,
+  opts?: { windRelease?: boolean; windBin?: string; windFilter?: string; cwd?: string },
+): RunConfiguration {
+  return {
+    id: generateConfigId(),
+    name: name ?? `Wind: ${command}`,
+    type: 'wind',
+    windCommand: command,
+    cwd: opts?.cwd,
+    windRelease: opts?.windRelease,
+    windBin: opts?.windBin,
+    windFilter: opts?.windFilter,
+    pinned: command === 'run',
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Multi-project detection for Aether ecosystem
 // ---------------------------------------------------------------------------
 
 export interface DetectedProject {
-  type: 'npm' | 'aether' | 'cmake' | 'python'
+  type: 'npm' | 'aether' | 'cmake' | 'python' | 'wind'
   label: string
   config: Partial<RunConfiguration>
 }
 
 export async function detectAetherProjects(workspaceRootPath: string): Promise<DetectedProject[]> {
   const projects: DetectedProject[] = []
+
+  // Wind.toml → aether-wind (cargo-style)
+  const windToml = await nativeReadTextRelative(workspaceRootPath, WIND_MANIFEST_FILE).catch(() => null)
+  if (windToml) {
+    const windCommands: WindSubcommand[] = ['build', 'run', 'check', 'test']
+    for (const cmd of windCommands) {
+      projects.push({
+        type: 'wind',
+        label: `wind ${cmd}`,
+        config: {
+          type: 'wind',
+          windCommand: cmd,
+          name: `Wind: ${cmd}`,
+          pinned: cmd === 'run',
+        },
+      })
+    }
+  }
 
   // Check for CMakeLists.txt → cmake build
   const cmakeContent = await nativeReadTextRelative(workspaceRootPath, 'CMakeLists.txt').catch(() => null)

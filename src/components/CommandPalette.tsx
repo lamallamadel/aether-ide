@@ -5,7 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { SETTINGS_CATEGORIES } from '../config/settingsCategories'
 import { useEditorStore } from '../state/editorStore'
 import { useRunStore } from '../run/runStore'
-import { launchConfig } from '../run/runEngine'
+import { launchConfig, launchWindQuick } from '../run/runEngine'
 
 function getAllFiles(nodes: FileNode[]): FileNode[] {
   let result: FileNode[] = []
@@ -62,6 +62,7 @@ export function CommandPalette() {
     useShallow((s) => ({ configurations: s.configurations, toggleBottomPanel: s.toggleBottomPanel }))
   )
   const workspaceRootPath = useEditorStore((s) => s.workspaceRootPath)
+  const workspaceHasWindToml = useEditorStore((s) => s.workspaceHasWindToml)
 
   const fileList = useMemo(() => getAllFiles(files), [files])
   const filteredFiles = useMemo(() => {
@@ -167,6 +168,22 @@ export function CommandPalette() {
         icon: <Terminal size={14} />,
         action: () => toggleBottomPanel(),
       },
+      ...(workspaceHasWindToml
+        ? (
+            [
+              ['cmd-wind-build', 'Wind: build', 'build'],
+              ['cmd-wind-run', 'Wind: run', 'run'],
+              ['cmd-wind-check', 'Wind: check', 'check'],
+              ['cmd-wind-test', 'Wind: test', 'test'],
+            ] as const
+          ).map(([id, name, cmd]) => ({
+            id,
+            name,
+            type: 'command' as const,
+            icon: <Play size={14} />,
+            action: () => void launchWindQuick(cmd),
+          }))
+        : []),
       ...runConfigs.map((config) => ({
         id: `cmd-run-${config.id}`,
         name: `Run: ${config.name}`,
@@ -175,7 +192,7 @@ export function CommandPalette() {
         action: () => void launchConfig(config, workspaceRootPath),
       })),
     ],
-    [aiPanelVisible, disconnectRemote, openSettings, setSidebarView, setWslFolderPromptOpen, remoteConnection?.status, setGlobalSearchOpen, setMissionControlOpen, setRemotePickerOpen, sidebarVisible, toggleAiPanel, toggleSidebar, runConfigs, toggleBottomPanel, workspaceRootPath]
+    [aiPanelVisible, disconnectRemote, openSettings, setSidebarView, setWslFolderPromptOpen, remoteConnection?.status, setGlobalSearchOpen, setMissionControlOpen, setRemotePickerOpen, sidebarVisible, toggleAiPanel, toggleSidebar, runConfigs, toggleBottomPanel, workspaceRootPath, workspaceHasWindToml]
   )
 
   const filteredCommands = useMemo(() => {

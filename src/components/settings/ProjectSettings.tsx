@@ -7,7 +7,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../../state/editorStore'
 import { SettingRow, ToggleRow, InfoCard } from './primitives'
 import type { ProjectType, AetherSdk } from '../../config/projectConfig'
-import { DEFAULT_SDK } from '../../config/projectConfig'
+import { DEFAULT_SDK, DEFAULT_WIND_PATH } from '../../config/projectConfig'
 
 const inputCls =
   'w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-[12px] text-gray-200 focus:outline-none focus:border-primary-500/50 placeholder-gray-600 font-mono'
@@ -64,15 +64,17 @@ function SdkField({
 }
 
 export function ProjectSettings() {
-  const { projectSettings, setProjectSettings, updateProjectSdk, initProjectIfNeeded, activeWorkspaceId } = useEditorStore(
-    useShallow((s) => ({
-      projectSettings: s.projectSettings,
-      setProjectSettings: s.setProjectSettings,
-      updateProjectSdk: s.updateProjectSdk,
-      initProjectIfNeeded: s.initProjectIfNeeded,
-      activeWorkspaceId: s.activeWorkspaceId,
-    }))
-  )
+  const { projectSettings, setProjectSettings, updateProjectSdk, initProjectIfNeeded, activeWorkspaceId, workspaceHasWindToml } =
+    useEditorStore(
+      useShallow((s) => ({
+        projectSettings: s.projectSettings,
+        setProjectSettings: s.setProjectSettings,
+        updateProjectSdk: s.updateProjectSdk,
+        initProjectIfNeeded: s.initProjectIfNeeded,
+        activeWorkspaceId: s.activeWorkspaceId,
+        workspaceHasWindToml: s.workspaceHasWindToml,
+      }))
+    )
 
   if (!activeWorkspaceId) {
     return (
@@ -112,6 +114,7 @@ export function ProjectSettings() {
   }
 
   const showSdk = projectSettings.type === 'aether-app' || projectSettings.type === 'aether-compiler' || projectSettings.type === 'aether-runtime'
+  const showWind = workspaceHasWindToml || projectSettings.type === 'aether-app'
 
   return (
     <div className="space-y-6">
@@ -200,13 +203,39 @@ export function ProjectSettings() {
         </div>
       )}
 
+      {/* wind (aether-wind) */}
+      {showWind && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+            <Wrench size={14} className="text-cyan-400" />
+            <h3 className="text-sm font-semibold text-gray-300">wind (package manager)</h3>
+          </div>
+          <SdkField
+            label="wind executable"
+            hint="Path to wind in WSL, or wind if on PATH (see aether-wind README)"
+            value={projectSettings.windPath ?? DEFAULT_WIND_PATH}
+            defaultValue={DEFAULT_WIND_PATH}
+            onChange={(v) => patchProject({ windPath: v || DEFAULT_WIND_PATH })}
+            placeholder={DEFAULT_WIND_PATH}
+          />
+          <SdkField
+            label="Manifest path (optional)"
+            hint="Relative Wind.toml if not at workspace root; passed as --manifest"
+            value={projectSettings.windManifestPath ?? ''}
+            defaultValue=""
+            onChange={(v) => patchProject({ windManifestPath: v.trim() || undefined })}
+            placeholder="Wind.toml"
+          />
+        </div>
+      )}
+
       {/* Compile on save */}
       {showSdk && (
         <div className="pt-2">
           <ToggleRow
             icon={<CheckCircle size={16} />}
             title="Compile on Save"
-            description="Run aether-compile --check when saving .aether files to get real compiler diagnostics"
+            description="Refresh embedded Aether diagnostics when saving .aether files (LSP in-process, not wind check)"
             enabled={projectSettings.compileOnSave ?? false}
             onClick={() => patchProject({ compileOnSave: !(projectSettings.compileOnSave ?? false) })}
           />

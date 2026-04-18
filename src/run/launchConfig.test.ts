@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { parseLaunchJson, serializeLaunchJson, makeNpmConfig, makeShellConfig, makeAetherConfig, makeCmakeConfig, makePythonConfig } from './launchConfig'
+import {
+  parseLaunchJson,
+  serializeLaunchJson,
+  makeNpmConfig,
+  makeShellConfig,
+  makeAetherConfig,
+  makeCmakeConfig,
+  makePythonConfig,
+  makeWindConfig,
+} from './launchConfig'
 
 describe('launchConfig', () => {
   describe('parseLaunchJson', () => {
@@ -103,6 +112,25 @@ describe('launchConfig', () => {
     })
   })
 
+  describe('makeWindConfig', () => {
+    it('crée wind build par défaut', () => {
+      const cfg = makeWindConfig('build')
+      expect(cfg.type).toBe('wind')
+      expect(cfg.windCommand).toBe('build')
+      expect(cfg.name).toBe('Wind: build')
+      expect(cfg.pinned).toBe(false)
+    })
+
+    it('épingle wind run', () => {
+      const cfg = makeWindConfig('run', 'My run', { windRelease: true, windBin: 'app' })
+      expect(cfg.windCommand).toBe('run')
+      expect(cfg.name).toBe('My run')
+      expect(cfg.pinned).toBe(true)
+      expect(cfg.windRelease).toBe(true)
+      expect(cfg.windBin).toBe('app')
+    })
+  })
+
   describe('makePythonConfig', () => {
     it('crée une configuration python valide', () => {
       const cfg = makePythonConfig('main.py', '/proj')
@@ -125,13 +153,17 @@ describe('launchConfig', () => {
           { id: 'a1', name: 'Aether Main', type: 'aether', aetherFile: 'main.aether' },
           { id: 'c1', name: 'Build Core', type: 'cmake', cmakeTarget: 'all', cmakeBuildDir: 'build' },
           { id: 'p1', name: 'Infer', type: 'python', pythonModule: '-m aether_infer' },
+          { id: 'w1', name: 'Wind build', type: 'wind', windCommand: 'build', windRelease: true },
         ],
       })
       const result = parseLaunchJson(json)
-      expect(result).toHaveLength(3)
+      expect(result).toHaveLength(4)
       expect(result[0].type).toBe('aether')
       expect(result[1].type).toBe('cmake')
       expect(result[2].type).toBe('python')
+      expect(result[3].type).toBe('wind')
+      expect(result[3].windCommand).toBe('build')
+      expect(result[3].windRelease).toBe(true)
     })
   })
 })

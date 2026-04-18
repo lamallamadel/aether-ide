@@ -10,6 +10,7 @@ import type { RunConfiguration } from '../../run/types'
 
 const TYPE_LABELS: Record<string, string> = {
   aether: 'aether',
+  wind: 'wind',
   cmake: 'cmake',
   python: 'python',
   npm: 'npm',
@@ -20,6 +21,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 const TYPE_COLORS: Record<string, string> = {
   aether: 'text-purple-400',
+  wind: 'text-sky-400',
   cmake: 'text-cyan-400',
   python: 'text-yellow-400',
   npm: 'text-green-400',
@@ -73,6 +75,8 @@ export function RunConfigCard({ config, isSelected, onSelect, onEdit }: Props) {
   const subLabel =
     config.type === 'aether'
       ? `aethercc ${config.aetherFile ?? 'main.aether'}`
+      : config.type === 'wind'
+      ? `wind ${config.windCommand ?? 'build'}${config.windRelease ? ' --release' : ''}${config.windBin ? ` --bin ${config.windBin}` : ''}`
       : config.type === 'cmake'
       ? `cmake --build ${config.cmakeBuildDir ?? 'build'}${config.cmakeTarget ? ` --target ${config.cmakeTarget}` : ''}`
       : config.type === 'python'

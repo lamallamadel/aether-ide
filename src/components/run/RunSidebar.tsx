@@ -52,6 +52,7 @@ function SectionHeader({
 
 const TYPE_BADGE: Record<string, { color: string; icon: typeof Sparkles }> = {
   aether: { color: 'text-purple-400', icon: Sparkles },
+  wind: { color: 'text-sky-400', icon: Wrench },
   cmake: { color: 'text-cyan-400', icon: Wrench },
   python: { color: 'text-yellow-400', icon: TerminalIcon },
   npm: { color: 'text-green-400', icon: TerminalIcon },
@@ -209,7 +210,7 @@ export function RunSidebar() {
         )}
         {suggestionsOpen && detectedProjects.length === 0 && !loadingDetect && (
           <div className="mx-2 my-2 p-2 bg-white/5 rounded border border-white/10 text-[10px] text-gray-600">
-            No project files detected (CMakeLists.txt, Makefile, pyproject.toml, package.json).
+            No project files detected (Wind.toml, CMakeLists.txt, Makefile, pyproject.toml, package.json).
           </div>
         )}
 
